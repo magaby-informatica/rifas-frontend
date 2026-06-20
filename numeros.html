@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Números - Admin</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="navbar-brand">🎟️ Rifas Online</div>
+  <div class="navbar-user">
+    <span id="nombre-admin">Admin</span>
+    <button class="btn-logout" onclick="logout()">Cerrar Sesión</button>
+  </div>
+</nav>
+
+<div class="layout">
+  <aside class="sidebar">
+    <a class="sidebar-item" href="dashboard.html"><span>📊</span> Dashboard</a>
+    <a class="sidebar-item" href="rifas.html"><span>🎟️</span> Rifas</a>
+    <a class="sidebar-item" href="clientes.html"><span>👥</span> Clientes</a>
+    <a class="sidebar-item active" href="numeros.html"><span>🔢</span> Números</a>
+    <a class="sidebar-item" href="pagos.html"><span>💰</span> Pagos</a>
+  </aside>
+
+  <main class="main-content">
+    <h1 class="page-title">Números por Rifa</h1>
+
+    <div class="card">
+      <div class="form-group" style="max-width:300px;">
+        <label>Seleccionar Rifa</label>
+        <select id="select-rifa" onchange="cargarNumeros()">
+          <option value="">-- Seleccione una rifa --</option>
+        </select>
+      </div>
+
+      <div style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+        <span><span style="display:inline-block;width:16px;height:16px;background:#e8f0fe;border:2px solid #1a73e8;border-radius:4px;vertical-align:middle;"></span> Disponible</span>
+        <span><span style="display:inline-block;width:16px;height:16px;background:#34a853;border-radius:4px;vertical-align:middle;"></span> Pagado</span>
+        <span><span style="display:inline-block;width:16px;height:16px;background:#ea4335;border-radius:4px;vertical-align:middle;"></span> Debe</span>
+      </div>
+
+      <div id="grid-numeros" class="numeros-grid"></div>
+    </div>
+
+    <div class="card" id="card-sorteo" style="display:none;">
+      <div class="card-header">
+        <h2 class="card-title">🎯 Realizar Sorteo</h2>
+      </div>
+      <p style="margin-bottom:16px;color:#666;">Solo participan números con estado PAGADO en su totalidad.</p>
+      <button class="btn btn-primary" style="width:auto;" onclick="realizarSorteo()">Buscar Ganador Automáticamente</button>
+    </div>
+  </main>
+</div>
+
+<!-- Modal detalle número -->
+<div class="modal-overlay" id="modal-numero">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title" id="modal-titulo">Número</h3>
+      <button class="modal-close" onclick="cerrarModal()">×</button>
+    </div>
+    <div id="modal-contenido"></div>
+  </div>
+</div>
+
+<!-- Modal ganador admin -->
+<div class="ganador-overlay" id="ganador-admin">
+  <div class="ganador-card">
+    <div class="ganador-emoji">🏆</div>
+    <div class="ganador-titulo">¡GANADOR!</div>
+    <div class="ganador-numero" id="ganador-num">-</div>
+    <div class="ganador-nombre" id="ganador-nom">-</div>
+    <p style="color:#666;margin:16px 0;">¿Confirmar y notificar al cliente?</p>
+    <div style="display:flex;gap:16px;justify-content:center;">
+      <button class="btn btn-success" onclick="confirmarGanador()">✅ Confirmar</button>
+      <button class="btn btn-danger" onclick="cerrarGanador()">❌ Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = window.location.origin;
+  const admin = JSON.parse(localStorage.getItem('admin'));
+  if (!admin) window.location.href = '/static/login.html';
+  document.getElementById('nombre-admin').textContent = admin?.nombre || 'Admin';
+
+  let rifaActual = null;
+  let ganadorActual = null;
+
+  async function cargarRifas() {
+    const rifas = await fetch(`${API}/rifas/`).then(r => r.json());
+    const select = document.getElementById('select-rifa');
+    rifas.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.id_rifa;
+      opt.textContent = `#${r.id_rifa} - ${r.loteria} - ${r.premio}`;
+      select.appendChild(opt);
+    });
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('rifa')) {
+      select.value = params.get('rifa');
+      cargarNumeros();
+    }
+  }
+
+  async function cargarNumeros() {
+    const id = document.getElementById('select-rifa').value;
+    if (!id) return;
+    rifaActual = id;
+    const numeros = await fetch(`${API}/numeros/rifa/${id}/todos`).then(r => r.json());
+    const grid = document.getElementById('grid-numeros');
+    grid.innerHTML = numeros.map(n => {
+      let bg = '#e8f0fe', color = '#1a73e8', border = '#1a73e8';
+      if (n.id_cliente && n.estado === 'PAGADO') { bg = '#34a853'; color = 'white'; border = '#34a853'; }
+      else if (n.id_cliente && n.estado === 'DEBE') { bg = '#ea4335'; color = 'white'; border = '#ea4335'; }
+      return `<div onclick="verDetalle(${n.id_numero})" style="padding:16px 8px;border:2px solid ${border};border-radius:8px;background:${bg};color:${color};font-size:18px;font-weight:700;cursor:pointer;text-align:center;">${n.numero}</div>`;
+    }).join('');
+    document.getElementById('card-sorteo').style.display = 'block';
+  }
+
+  async function verDetalle(id) {
+    const numeros = await fetch(`${API}/numeros/rifa/${rifaActual}/todos`).then(r => r.json());
+    const num = numeros.find(n => n.id_numero === id);
+    const pagos = await fetch(`${API}/pagos/numero/${id}`).then(r => r.json());
+    const resumen = await fetch(`${API}/pagos/resumen/${id}`).then(r => r.json());
+
+    document.getElementById('modal-titulo').textContent = `Número ${num.numero}`;
+    document.getElementById('modal-contenido').innerHTML = `
+      <p><b>Estado:</b> <span class="badge badge-${num.estado.toLowerCase()}">${num.estado}</span></p>
+      <p style="margin:8px 0;"><b>Precio boleta:</b> $${Number(resumen.precio_boleta).toLocaleString()}</p>
+      <p><b>Total pagado:</b> $${Number(resumen.total_pagado).toLocaleString()}</p>
+      <p><b>Saldo pendiente:</b> $${Number(resumen.saldo_pendiente).toLocaleString()}</p>
+      <hr style="margin:16px 0;">
+      <h4 style="margin-bottom:12px;">Registrar Abono</h4>
+      <div class="form-group">
+        <label>Valor del Abono ($)</label>
+        <input type="number" id="valor-abono" placeholder="0">
+      </div>
+      <button class="btn btn-primary" onclick="registrarAbono(${id})">Registrar Pago</button>
+    `;
+    document.getElementById('modal-numero').classList.add('active');
+  }
+
+  async function registrarAbono(id_numero) {
+    const valor = parseFloat(document.getElementById('valor-abono').value);
+    if (!valor || valor <= 0) { alert('Ingrese un valor válido'); return; }
+    const res = await fetch(`${API}/pagos/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_numero, valor })
+    });
+    if (res.ok) {
+      cerrarModal();
+      cargarNumeros();
+    } else {
+      const err = await res.json();
+      alert(err.detail || 'Error al registrar pago');
+    }
+  }
+
+  async function realizarSorteo() {
+    const numeros = await fetch(`${API}/numeros/rifa/${rifaActual}/todos`).then(r => r.json());
+    const pagados = numeros.filter(n => n.estado === 'PAGADO' && n.id_cliente);
+    if (pagados.length === 0) { alert('No hay números pagados para sortear'); return; }
+    const ganador = pagados[Math.floor(Math.random() * pagados.length)];
+    const cliente = await fetch(`${API}/clientes/${ganador.id_cliente}`).then(r => r.json());
+    ganadorActual = { numero: ganador.numero, cliente };
+    document.getElementById('ganador-num').textContent = ganador.numero;
+    document.getElementById('ganador-nom').textContent = cliente.nombre_apellidos;
+    document.getElementById('ganador-admin').classList.add('active');
+  }
+
+  function confirmarGanador() {
+    localStorage.setItem('ganador', JSON.stringify(ganadorActual));
+    cerrarGanador();
+    alert(`✅ Ganador confirmado: ${ganadorActual.cliente.nombre_apellidos} con el número ${ganadorActual.numero}`);
+  }
+
+  function cerrarGanador() { document.getElementById('ganador-admin').classList.remove('active'); }
+  function cerrarModal() { document.getElementById('modal-numero').classList.remove('active'); }
+  function logout() { localStorage.clear(); window.location.href = '/static/login.html'; }
+
+  cargarRifas();
+</script>
+</body>
+</html>

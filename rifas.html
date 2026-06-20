@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rifas - Admin</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="navbar-brand">🎟️ Rifas Online</div>
+  <div class="navbar-user">
+    <span id="nombre-admin">Admin</span>
+    <button class="btn-logout" onclick="logout()">Cerrar Sesión</button>
+  </div>
+</nav>
+
+<div class="layout">
+  <aside class="sidebar">
+    <a class="sidebar-item" href="dashboard.html"><span>📊</span> Dashboard</a>
+    <a class="sidebar-item active" href="rifas.html"><span>🎟️</span> Rifas</a>
+    <a class="sidebar-item" href="clientes.html"><span>👥</span> Clientes</a>
+    <a class="sidebar-item" href="numeros.html"><span>🔢</span> Números</a>
+    <a class="sidebar-item" href="pagos.html"><span>💰</span> Pagos</a>
+  </aside>
+
+  <main class="main-content">
+    <h1 class="page-title">Gestión de Rifas</h1>
+    <div id="alerta"></div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Nueva Rifa</h2>
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="form-group">
+          <label>Lotería</label>
+          <select id="loteria">
+            <option>Lotería del Valle</option>
+            <option>Lotería de Bogotá</option>
+            <option>Lotería de Medellín</option>
+            <option>Lotería del Tolima</option>
+            <option>Lotería del Huila</option>
+            <option>Lotería de Cundinamarca</option>
+            <option>Lotería del Meta</option>
+            <option>Chance</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Fecha del Sorteo</label>
+          <input type="date" id="fecha">
+        </div>
+        <div class="form-group">
+          <label>Premio</label>
+          <input type="text" id="premio" placeholder="Ej: Televisor 55 pulgadas">
+        </div>
+        <div class="form-group">
+          <label>Costo del Premio ($)</label>
+          <input type="number" id="costo_premio" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>Precio Boleta ($)</label>
+          <input type="number" id="precio_boleta" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>Cifras</label>
+          <select id="cifras">
+            <option value="1">1 cifra (0-9) = 10 números</option>
+            <option value="2">2 cifras (00-99) = 100 números</option>
+            <option value="3">3 cifras (000-999) = 1000 números</option>
+          </select>
+        </div>
+        <div class="form-group" style="grid-column: span 2;">
+          <label>Descripción</label>
+          <textarea id="descripcion" rows="3" placeholder="Descripción de la rifa..."></textarea>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:auto;" onclick="crearRifa()">Crear Rifa</button>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Rifas Registradas</h2>
+      </div>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Lotería</th><th>Premio</th><th>Fecha</th><th>Cifras</th><th>Precio Boleta</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="tabla-rifas"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script>
+  const API = window.location.origin;
+  const admin = JSON.parse(localStorage.getItem('admin'));
+  if (!admin) window.location.href = '/static/login.html';
+  document.getElementById('nombre-admin').textContent = admin?.nombre || 'Admin';
+
+  async function cargarRifas() {
+    const rifas = await fetch(`${API}/rifas/`).then(r => r.json());
+    const tbody = document.getElementById('tabla-rifas');
+    tbody.innerHTML = rifas.map(r => `
+      <tr>
+        <td>#${r.id_rifa}</td>
+        <td>${r.loteria}</td>
+        <td>${r.premio}</td>
+        <td>${r.fecha}</td>
+        <td>${r.cifras} cifra(s)</td>
+        <td>$${Number(r.precio_boleta).toLocaleString()}</td>
+        <td style="display:flex;gap:8px;">
+          <a href="numeros.html?rifa=${r.id_rifa}"><button class="btn btn-primary btn-sm">Números</button></a>
+          <button class="btn btn-danger btn-sm" onclick="eliminarRifa(${r.id_rifa})">Eliminar</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  async function crearRifa() {
+    const datos = {
+      fecha: document.getElementById('fecha').value,
+      loteria: document.getElementById('loteria').value,
+      premio: document.getElementById('premio').value,
+      costo_premio: parseFloat(document.getElementById('costo_premio').value),
+      precio_boleta: parseFloat(document.getElementById('precio_boleta').value),
+      cifras: parseInt(document.getElementById('cifras').value),
+      descripcion: document.getElementById('descripcion').value
+    };
+    if (!datos.fecha || !datos.premio || !datos.precio_boleta) {
+      mostrarAlerta('Complete todos los campos obligatorios', 'error'); return;
+    }
+    const res = await fetch(`${API}/rifas/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(datos)
+    });
+    if (res.ok) {
+      mostrarAlerta('Rifa creada exitosamente', 'success');
+      cargarRifas();
+    } else {
+      mostrarAlerta('Error al crear la rifa', 'error');
+    }
+  }
+
+  async function eliminarRifa(id) {
+    if (!confirm('¿Eliminar esta rifa?')) return;
+    await fetch(`${API}/rifas/${id}`, { method: 'DELETE' });
+    cargarRifas();
+  }
+
+  function mostrarAlerta(msg, tipo) {
+    document.getElementById('alerta').innerHTML = `<div class="alert alert-${tipo}">${msg}</div>`;
+    setTimeout(() => document.getElementById('alerta').innerHTML = '', 3000);
+  }
+
+  function logout() { localStorage.clear(); window.location.href = '/static/login.html'; }
+  cargarRifas();
+</script>
+</body>
+</html>

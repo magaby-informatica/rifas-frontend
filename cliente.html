@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rifas Online - Cliente</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+
+<!-- LOGIN CLIENTE -->
+<div class="login-container" id="vista-login">
+  <div class="login-card">
+    <div class="login-logo">🎟️</div>
+    <h1>Rifas Online</h1>
+    <p>Ingresa con tu PIN para ver las rifas</p>
+    <div id="alerta-login"></div>
+    <div class="form-group">
+      <label>PIN de Acceso</label>
+      <input type="text" id="pin" placeholder="Ingresa tu PIN" style="font-size:24px;text-align:center;letter-spacing:4px;">
+    </div>
+    <button class="btn btn-primary" onclick="loginCliente()">Ingresar</button>
+  </div>
+</div>
+
+<!-- VISTA CLIENTE -->
+<div style="display:none;" id="vista-cliente">
+  <nav class="navbar">
+    <div class="navbar-brand">🎟️ Rifas Online</div>
+    <div class="navbar-user">
+      <span id="nombre-cliente">Cliente</span>
+      <button class="btn-logout" onclick="logoutCliente()">Salir</button>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <h1 class="page-title">Rifas Disponibles</h1>
+    <div id="lista-rifas"></div>
+  </main>
+</div>
+
+<!-- VISTA NUMEROS CLIENTE -->
+<div style="display:none;" id="vista-numeros">
+  <nav class="navbar">
+    <div class="navbar-brand">🎟️ Rifas Online</div>
+    <div class="navbar-user">
+      <span id="nombre-cliente2">Cliente</span>
+      <button class="btn-logout" onclick="volverRifas()">← Volver</button>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <div id="info-rifa" class="card" style="margin-bottom:16px;"></div>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Números Disponibles</h2>
+      </div>
+      <p style="color:#666;margin-bottom:16px;">Haz clic en un número para tomarlo</p>
+      <div id="grid-cliente" class="numeros-grid"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Mis Números</h2>
+      </div>
+      <table>
+        <thead><tr><th>Número</th><th>Estado</th><th>Pagado</th><th>Saldo</th></tr></thead>
+        <tbody id="mis-numeros"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL CONFIRMAR NUMERO -->
+<div class="modal-overlay" id="modal-confirmar">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Confirmar Número</h3>
+      <button class="modal-close" onclick="cerrarConfirmar()">×</button>
+    </div>
+    <p style="margin-bottom:24px;">¿Deseas tomar el número <strong id="num-seleccionado"></strong>?</p>
+    <div style="display:flex;gap:12px;">
+      <button class="btn btn-primary" onclick="confirmarNumero()">✅ Confirmar</button>
+      <button class="btn btn-danger" onclick="cerrarConfirmar()">❌ Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ALERTA GANADOR CLIENTE -->
+<div class="ganador-overlay" id="ganador-cliente">
+  <div class="ganador-card">
+    <div class="ganador-emoji">🎉</div>
+    <div class="ganador-titulo">¡FELICITACIONES!</div>
+    <p style="font-size:20px;color:#444;">¡Eres el ganador con el número!</p>
+    <div class="ganador-numero" id="num-ganador-cliente">-</div>
+    <button class="btn btn-primary" style="margin-top:24px;width:auto;" onclick="cerrarGanadorCliente()">¡Gracias!</button>
+  </div>
+</div>
+
+<script>
+  const API = window.location.origin;
+  let clienteActual = null;
+  let rifaActual = null;
+  let numeroSeleccionado = null;
+
+  async function loginCliente() {
+    const pin = document.getElementById('pin').value;
+    if (!pin) { mostrarAlertaLogin('Ingresa tu PIN', 'error'); return; }
+    const res = await fetch(`${API}/auth/cliente/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin })
+    });
+    if (res.ok) {
+      clienteActual = await res.json();
+      document.getElementById('vista-login').style.display = 'none';
+      document.getElementById('vista-cliente').style.display = 'block';
+      document.getElementById('nombre-cliente').textContent = clienteActual.nombre;
+      document.getElementById('nombre-cliente2').textContent = clienteActual.nombre;
+      cargarRifas();
+      verificarGanador();
+    } else {
+      mostrarAlertaLogin('PIN incorrecto', 'error');
+    }
+  }
+
+  async function cargarRifas() {
+    const rifas = await fetch(`${API}/rifas/`).then(r => r.json());
+    const lista = document.getElementById('lista-rifas');
+    lista.innerHTML = rifas.map(r => `
+      <div class="card" style="cursor:pointer;" onclick="verRifa(${r.id_rifa})">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <h2 style="font-size:20px;font-weight:700;">${r.premio}</h2>
+            <p style="color:#666;margin:4px 0;">${r.loteria} • ${r.fecha}</p>
+            <p style="color:#1a73e8;font-weight:600;">Boleta: $${Number(r.precio_boleta).toLocaleString()}</p>
+            <p style="color:#444;font-size:14px;">${r.descripcion || ''}</p>
+          </div>
+          <div style="font-size:48px;">🎟️</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function verRifa(id) {
+    rifaActual = id;
+    const rifa = await fetch(`${API}/rifas/${id}`).then(r => r.json());
+    const disponibles = await fetch(`${API}/numeros/disponibles/${id}`).then(r => r.json());
+    const misNumeros = await fetch(`${API}/numeros/cliente/${clienteActual.id_cliente}`).then(r => r.json());
+    const misNumerosRifa = misNumeros.filter(n => n.id_rifa === id);
+
+    document.getElementById('vista-cliente').style.display = 'none';
+    document.getElementById('vista-numeros').style.display = 'block';
+
+    document.getElementById('info-rifa').innerHTML = `
+      <h2 style="font-size:22px;font-weight:700;">${rifa.premio}</h2>
+      <p style="color:#666;">${rifa.loteria} • ${rifa.fecha}</p>
+      <p style="color:#1a73e8;font-weight:600;margin-top:8px;">Precio boleta: $${Number(rifa.precio_boleta).toLocaleString()}</p>
+    `;
+
+    const grid = document.getElementById('grid-cliente');
+    grid.innerHTML = disponibles.map(n => `
+      <div class="numero-btn" onclick="seleccionarNumero('${n.numero}')">${n.numero}</div>
+    `).join('');
+
+    const tbody = document.getElementById('mis-numeros');
+    if (misNumerosRifa.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;">No tienes números en esta rifa</td></tr>';
+    } else {
+      const rows = await Promise.all(misNumerosRifa.map(async n => {
+        const res = await fetch(`${API}/pagos/resumen/${n.id_numero}`).then(r => r.json());
+        return `<tr>
+          <td style="font-size:20px;font-weight:700;">${n.numero}</td>
+          <td><span class="badge badge-${n.estado.toLowerCase()}">${n.estado}</span></td>
+          <td>$${Number(res.total_pagado).toLocaleString()}</td>
+          <td>$${Number(res.saldo_pendiente).toLocaleString()}</td>
+        </tr>`;
+      }));
+      tbody.innerHTML = rows.join('');
+    }
+  }
+
+  function seleccionarNumero(num) {
+    numeroSeleccionado = num;
+    document.getElementById('num-seleccionado').textContent = num;
+    document.getElementById('modal-confirmar').classList.add('active');
+  }
+
+  async function confirmarNumero() {
+    const res = await fetch(`${API}/numeros/asignar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ numero: numeroSeleccionado, id_rifa: rifaActual, id_cliente: clienteActual.id_cliente })
+    });
+    cerrarConfirmar();
+    if (res.ok) { verRifa(rifaActual); }
+    else { const e = await res.json(); alert(e.detail || 'Error'); }
+  }
+
+  function verificarGanador() {
+    const ganador = JSON.parse(localStorage.getItem('ganador'));
+    if (ganador && clienteActual && ganador.cliente.id_cliente === clienteActual.id_cliente) {
+      document.getElementById('num-ganador-cliente').textContent = ganador.numero;
+      document.getElementById('ganador-cliente').classList.add('active');
+      localStorage.removeItem('ganador');
+    }
+  }
+
+  function cerrarGanadorCliente() { document.getElementById('ganador-cliente').classList.remove('active'); }
+  function cerrarConfirmar() { document.getElementById('modal-confirmar').classList.remove('active'); }
+  function volverRifas() {
+    document.getElementById('vista-numeros').style.display = 'none';
+    document.getElementById('vista-cliente').style.display = 'block';
+  }
+  function logoutCliente() {
+    clienteActual = null;
+    document.getElementById('vista-cliente').style.display = 'none';
+    document.getElementById('vista-login').style.display = 'flex';
+    document.getElementById('pin').value = '';
+  }
+  function mostrarAlertaLogin(msg, tipo) {
+    document.getElementById('alerta-login').innerHTML = `<div class="alert alert-${tipo}">${msg}</div>`;
+  }
+  document.addEventListener('keypress', e => { if (e.key === 'Enter') loginCliente(); });
+</script>
+</body>
+</html>
