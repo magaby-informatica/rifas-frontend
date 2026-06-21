@@ -8,7 +8,10 @@
 </head>
 <body>
 <nav class="navbar">
-  <button class="btn-hamburger" onclick="toggleSidebar()"><div class="navbar-brand">Rifas Online</div>#9776;</button><div class="navbar-brand">Rifas Online</div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button class="btn-hamburger" onclick="toggleSidebar()">&#9776;</button>
+    <div class="navbar-brand">Rifas Online</div>
+  </div>
   <div class="navbar-user">
     <span id="nombre-admin">Admin</span>
     <button class="btn-logout" onclick="logout()">Cerrar Sesion</button>
@@ -17,11 +20,11 @@
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 <div class="layout">
   <aside class="sidebar" id="sidebar">
-    <a class="sidebar-item" href="dashboard.html">Dashboard</a>
-    <a class="sidebar-item" href="rifas.html">Rifas</a>
-    <a class="sidebar-item" href="clientes.html">Clientes</a>
-    <a class="sidebar-item" href="numeros.html">Numeros</a>
-    <a class="sidebar-item active" href="pagos.html">Pagos</a>
+    <a class="sidebar-item" href="dashboard.html" onclick="closeSidebar()">Dashboard</a>
+    <a class="sidebar-item" href="rifas.html" onclick="closeSidebar()">Rifas</a>
+    <a class="sidebar-item" href="clientes.html" onclick="closeSidebar()">Clientes</a>
+    <a class="sidebar-item" href="numeros.html" onclick="closeSidebar()">Numeros</a>
+    <a class="sidebar-item active" href="pagos.html" onclick="closeSidebar()">Pagos</a>
   </aside>
   <main class="main-content">
     <h1 class="page-title">Gestion de Pagos</h1>
@@ -29,33 +32,44 @@
       <div class="card-header">
         <h2 class="card-title">Registrar Pago</h2>
       </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>ID del Numero</label>
-          <input type="number" id="id-numero" placeholder="ID del numero">
-        </div>
-        <div class="form-group">
-          <label>Valor del Abono</label>
-          <input type="number" id="valor-pago" placeholder="Valor en pesos">
+      <div class="form-group">
+        <label>1. Seleccionar Rifa</label>
+        <select id="select-rifa" onchange="cargarNumeros()">
+          <option value="">-- Seleccione una rifa --</option>
+        </select>
+      </div>
+      <div class="form-group" id="grupo-numero" style="display:none">
+        <label>2. Seleccionar Numero</label>
+        <select id="select-numero" onchange="mostrarInfoNumero()">
+          <option value="">-- Seleccione un numero --</option>
+        </select>
+      </div>
+      <div id="info-numero" style="display:none; margin-bottom:16px;">
+        <div class="stat-card">
+          <p>Numero: <strong id="info-num"></strong></p>
+          <p>Cliente: <strong id="info-cliente"></strong></p>
+          <p>Precio boleta: <strong id="info-precio"></strong></p>
+          <p>Total pagado: <strong id="info-pagado"></strong></p>
+          <p>Saldo pendiente: <strong id="info-saldo"></strong></p>
+          <p>Estado: <strong id="info-estado"></strong></p>
         </div>
       </div>
-      <button class="btn btn-primary" onclick="registrarPago()">Registrar Abono</button>
-      <div id="resumen-pago" style="margin-top:16px;"></div>
+      <div class="form-group" id="grupo-valor" style="display:none">
+        <label>3. Valor del Abono</label>
+        <input type="number" id="valor-pago" placeholder="Valor en pesos">
+      </div>
+      <button class="btn btn-primary" id="btn-pagar" style="display:none" onclick="registrarPago()">Registrar Abono</button>
       <div id="alerta-pago"></div>
     </div>
-    <div class="card">
+    <div class="card" id="card-historial" style="display:none">
       <div class="card-header">
-        <h2 class="card-title">Consultar Pagos por Numero</h2>
+        <h2 class="card-title">Historial de Pagos</h2>
       </div>
-      <div class="form-group">
-        <input type="number" id="consultar-id" placeholder="ID del numero a consultar">
-        <button class="btn btn-primary btn-sm" onclick="consultarPagos()" style="margin-top:8px;">Consultar</button>
-      </div>
-      <table id="tabla-pagos" style="display:none">
+      <table>
         <thead>
           <tr><th>ID Abono</th><th>Valor</th><th>Fecha</th></tr>
         </thead>
-        <tbody id="tbody-pagos"></tbody>
+        <tbody id="tbody-pagos"><tr><td colspan="3">No hay pagos</td></tr></tbody>
       </table>
     </div>
   </main>
@@ -64,11 +78,83 @@
   const API = "https://rifas-online-zeta.vercel.app";
   const admin = JSON.parse(localStorage.getItem('admin') || 'null');
   if (!admin) window.location.href = 'login.html';
+  else document.getElementById('nombre-admin').textContent = admin.nombre || 'Admin';
 
   function logout() { localStorage.removeItem('admin'); window.location.href = 'login.html'; }
 
+  async function cargarRifas() {
+    const res = await fetch(`${API}/rifas/`);
+    const rifas = await res.json();
+    const sel = document.getElementById('select-rifa');
+    rifas.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.id_rifa;
+      opt.textContent = `${r.loteria} - ${r.premio} (${r.fecha})`;
+      sel.appendChild(opt);
+    });
+  }
+
+  async function cargarNumeros() {
+    const idRifa = document.getElementById('select-rifa').value;
+    if (!idRifa) { document.getElementById('grupo-numero').style.display = 'none'; return; }
+    const res = await fetch(`${API}/numeros/rifa/${idRifa}`);
+    const numeros = await res.json();
+    const sel = document.getElementById('select-numero');
+    sel.innerHTML = '<option value="">-- Seleccione un numero --</option>';
+    const asignados = numeros.filter(n => n.id_cliente);
+    asignados.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n.id_numero;
+      opt.textContent = `Numero ${n.numero} - ${n.estado}`;
+      sel.appendChild(opt);
+    });
+    document.getElementById('grupo-numero').style.display = 'block';
+    document.getElementById('info-numero').style.display = 'none';
+    document.getElementById('grupo-valor').style.display = 'none';
+    document.getElementById('btn-pagar').style.display = 'none';
+    document.getElementById('card-historial').style.display = 'none';
+  }
+
+  async function mostrarInfoNumero() {
+    const idNumero = document.getElementById('select-numero').value;
+    if (!idNumero) return;
+    try {
+      const res = await fetch(`${API}/pagos/resumen/${idNumero}`);
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById('info-num').textContent = data.numero;
+        document.getElementById('info-cliente').textContent = data.cliente || '-';
+        document.getElementById('info-precio').textContent = '$' + Number(data.precio_boleta).toLocaleString();
+        document.getElementById('info-pagado').textContent = '$' + Number(data.total_pagado).toLocaleString();
+        document.getElementById('info-saldo').textContent = '$' + Number(data.saldo_pendiente).toLocaleString();
+        document.getElementById('info-estado').textContent = data.estado;
+        document.getElementById('info-numero').style.display = 'block';
+      }
+    } catch(e) {}
+    document.getElementById('grupo-valor').style.display = 'block';
+    document.getElementById('btn-pagar').style.display = 'block';
+    cargarHistorial(idNumero);
+  }
+
+  async function cargarHistorial(idNumero) {
+    try {
+      const res = await fetch(`${API}/pagos/numero/${idNumero}`);
+      const pagos = await res.json();
+      const tbody = document.getElementById('tbody-pagos');
+      document.getElementById('card-historial').style.display = 'block';
+      if (pagos.length === 0) { tbody.innerHTML = '<tr><td colspan="3">No hay pagos registrados</td></tr>'; return; }
+      tbody.innerHTML = pagos.map(p => `
+        <tr>
+          <td>${p.id_abono}</td>
+          <td>$${Number(p.valor).toLocaleString()}</td>
+          <td>${new Date(p.fecha_pago).toLocaleDateString()}</td>
+        </tr>
+      `).join('');
+    } catch(e) {}
+  }
+
   async function registrarPago() {
-    const idNumero = document.getElementById('id-numero').value;
+    const idNumero = document.getElementById('select-numero').value;
     const valor = document.getElementById('valor-pago').value;
     if (!idNumero || !valor) { mostrarAlerta('Complete todos los campos', 'error'); return; }
     try {
@@ -78,62 +164,28 @@
       });
       const data = await res.json();
       if (res.ok) {
-        mostrarAlerta('Pago registrado!', 'success');
-        consultarResumen(idNumero);
+        mostrarAlerta('Pago registrado exitosamente!', 'success');
+        document.getElementById('valor-pago').value = '';
+        mostrarInfoNumero();
       } else mostrarAlerta(data.detail || 'Error al registrar pago', 'error');
     } catch(e) { mostrarAlerta('Error de conexion', 'error'); }
   }
 
-  async function consultarResumen(idNumero) {
-    try {
-      const res = await fetch(`${API}/pagos/resumen/${idNumero}`);
-      const data = await res.json();
-      document.getElementById('resumen-pago').innerHTML = `
-        <div class="stat-card" style="margin-top:8px;">
-          <p>Numero: <strong>${data.numero}</strong></p>
-          <p>Precio boleta: <strong>$${Number(data.precio_boleta).toLocaleString()}</strong></p>
-          <p>Total pagado: <strong>$${Number(data.total_pagado).toLocaleString()}</strong></p>
-          <p>Saldo pendiente: <strong>$${Number(data.saldo_pendiente).toLocaleString()}</strong></p>
-          <p>Estado: <strong>${data.estado}</strong></p>
-        </div>
-      `;
-    } catch(e) {}
-  }
-
-  async function consultarPagos() {
-    const idNumero = document.getElementById('consultar-id').value;
-    if (!idNumero) return;
-    try {
-      const res = await fetch(`${API}/pagos/numero/${idNumero}`);
-      const pagos = await res.json();
-      const tabla = document.getElementById('tabla-pagos');
-      const tbody = document.getElementById('tbody-pagos');
-      tabla.style.display = 'table';
-      if (pagos.length === 0) { tbody.innerHTML = '<tr><td colspan="3">No hay pagos</td></tr>'; return; }
-      tbody.innerHTML = pagos.map(p => `
-        <tr>
-          <td>${p.id_abono}</td>
-          <td>$${Number(p.valor).toLocaleString()}</td>
-          <td>${new Date(p.fecha_pago).toLocaleDateString()}</td>
-        </tr>
-      `).join('');
-      consultarResumen(idNumero);
-    } catch(e) {}
-  }
-
   function mostrarAlerta(msg, tipo) {
     document.getElementById('alerta-pago').innerHTML = `<div class="alert alert-${tipo}">${msg}</div>`;
+    setTimeout(() => document.getElementById('alerta-pago').innerHTML = '', 3000);
   }
-</script>
-<script>
-function toggleSidebar() {
-  document.getElementById("sidebar").classList.toggle("open");
-  document.getElementById("sidebar-overlay").classList.toggle("active");
-}
-function closeSidebar() {
-  document.getElementById("sidebar").classList.remove("open");
-  document.getElementById("sidebar-overlay").classList.remove("active");
-}
+
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('active');
+  }
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('active');
+  }
+
+  cargarRifas();
 </script>
 </body>
 </html>
