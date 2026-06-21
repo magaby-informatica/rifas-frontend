@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rifas - Rifas Online</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<nav class="navbar">
+  <div class="navbar-brand">Rifas Online</div>
+  <div class="navbar-user">
+    <span id="nombre-admin">Admin</span>
+    <button class="btn-logout" onclick="logout()">Cerrar Sesion</button>
+  </div>
+</nav>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="sidebar-item" href="dashboard.html">Dashboard</a>
+    <a class="sidebar-item active" href="rifas.html">Rifas</a>
+    <a class="sidebar-item" href="clientes.html">Clientes</a>
+    <a class="sidebar-item" href="numeros.html">Numeros</a>
+    <a class="sidebar-item" href="pagos.html">Pagos</a>
+  </aside>
+  <main class="main-content">
+    <h1 class="page-title">Gestion de Rifas</h1>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Nueva Rifa</h2>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Loteria</label>
+          <input type="text" id="loteria" placeholder="Ej: Loteria del Valle">
+        </div>
+        <div class="form-group">
+          <label>Premio</label>
+          <input type="text" id="premio" placeholder="Ej: Moto AKT">
+        </div>
+        <div class="form-group">
+          <label>Fecha del Sorteo</label>
+          <input type="date" id="fecha">
+        </div>
+        <div class="form-group">
+          <label>Costo del Premio</label>
+          <input type="number" id="costo-premio" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>Precio Boleta</label>
+          <input type="number" id="precio-boleta" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>Cifras (2=00-99, 3=000-999)</label>
+          <select id="cifras">
+            <option value="2">2 cifras (100 numeros)</option>
+            <option value="3">3 cifras (1000 numeros)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Descripcion</label>
+          <input type="text" id="descripcion" placeholder="Descripcion opcional">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="crearRifa()">Crear Rifa</button>
+      <div id="alerta-rifa"></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Rifas Creadas</h2>
+      </div>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Loteria</th><th>Premio</th><th>Fecha</th><th>Precio</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="tabla-rifas"><tr><td colspan="6">Cargando...</td></tr></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+<script>
+  const API = "https://rifas-online-zeta.vercel.app";
+  const admin = JSON.parse(localStorage.getItem('admin') || 'null');
+  if (!admin) window.location.href = 'login.html';
+
+  function logout() { localStorage.removeItem('admin'); window.location.href = 'login.html'; }
+
+  async function crearRifa() {
+    const body = {
+      loteria: document.getElementById('loteria').value,
+      premio: document.getElementById('premio').value,
+      fecha: document.getElementById('fecha').value,
+      costo_premio: parseFloat(document.getElementById('costo-premio').value),
+      precio_boleta: parseFloat(document.getElementById('precio-boleta').value),
+      cifras: parseInt(document.getElementById('cifras').value),
+      descripcion: document.getElementById('descripcion').value
+    };
+    if (!body.loteria || !body.premio || !body.fecha) {
+      mostrarAlerta('Complete los campos obligatorios', 'error'); return;
+    }
+    try {
+      const res = await fetch(`${API}/rifas/`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (res.ok) { mostrarAlerta('Rifa creada exitosamente!', 'success'); cargarRifas(); }
+      else mostrarAlerta(data.detail || 'Error al crear rifa', 'error');
+    } catch(e) { mostrarAlerta('Error de conexion', 'error'); }
+  }
+
+  function mostrarAlerta(msg, tipo) {
+    document.getElementById('alerta-rifa').innerHTML = `<div class="alert alert-${tipo}">${msg}</div>`;
+  }
+
+  async function cargarRifas() {
+    try {
+      const res = await fetch(`${API}/rifas/`);
+      const rifas = await res.json();
+      const tbody = document.getElementById('tabla-rifas');
+      if (rifas.length === 0) { tbody.innerHTML = '<tr><td colspan="6">No hay rifas</td></tr>'; return; }
+      tbody.innerHTML = rifas.map(r => `
+        <tr>
+          <td>${r.id_rifa}</td>
+          <td>${r.loteria}</td>
+          <td>${r.premio}</td>
+          <td>${r.fecha}</td>
+          <td>$${Number(r.precio_boleta).toLocaleString()}</td>
+          <td><a href="numeros.html?rifa=${r.id_rifa}"><button class="btn btn-primary btn-sm">Numeros</button></a></td>
+        </tr>
+      `).join('');
+    } catch(e) {}
+  }
+
+  cargarRifas();
+</script>
+</body>
+</html>

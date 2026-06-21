@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rifas Online - Cliente</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-logo">🎟️</div>
+      <h1>Rifas Online</h1>
+      <p>Ingrese su PIN para ver sus numeros</p>
+      <div id="alerta"></div>
+      <div class="form-group">
+        <label>PIN</label>
+        <input type="password" id="pin" placeholder="Ingrese su PIN">
+      </div>
+      <button class="btn btn-primary" onclick="loginCliente()">Ingresar</button>
+    </div>
+  </div>
+  <div id="vista-cliente" style="display:none; padding:20px;">
+    <nav class="navbar">
+      <div class="navbar-brand">Rifas Online</div>
+      <div class="navbar-user">
+        <span id="nombre-cliente"></span>
+        <button class="btn-logout" onclick="logoutCliente()">Salir</button>
+      </div>
+    </nav>
+    <div class="main-content">
+      <h1 class="page-title">Mis Numeros</h1>
+      <div id="mis-numeros"></div>
+    </div>
+  </div>
+<script>
+  const API = "https://rifas-online-zeta.vercel.app";
+
+  async function loginCliente() {
+    const pin = document.getElementById('pin').value;
+    if (!pin) { mostrarAlerta('Ingrese su PIN', 'error'); return; }
+    try {
+      const res = await fetch(`${API}/auth/cliente/login`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ pin })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem('cliente', JSON.stringify(data));
+        document.querySelector('.login-container').style.display = 'none';
+        document.getElementById('vista-cliente').style.display = 'block';
+        document.getElementById('nombre-cliente').textContent = data.nombre;
+        cargarMisNumeros(data.id_cliente);
+      } else mostrarAlerta(data.detail || 'PIN incorrecto', 'error');
+    } catch(e) { mostrarAlerta('Error de conexion', 'error'); }
+  }
+
+  async function cargarMisNumeros(idCliente) {
+    try {
+      const res = await fetch(`${API}/numeros/cliente/${idCliente}`);
+      const numeros = await res.json();
+      const div = document.getElementById('mis-numeros');
+      if (numeros.length === 0) { div.innerHTML = '<p>No tienes numeros asignados aun.</p>'; return; }
+      div.innerHTML = numeros.map(n => `
+        <div class="card" style="margin-bottom:16px;">
+          <h3>Numero: ${n.numero}</h3>
+          <p>Estado: <strong>${n.estado}</strong></p>
+          <p>Rifa ID: ${n.id_rifa}</p>
+        </div>
+      `).join('');
+    } catch(e) {}
+  }
+
+  function logoutCliente() {
+    localStorage.removeItem('cliente');
+    location.reload();
+  }
+
+  function mostrarAlerta(msg, tipo) {
+    document.getElementById('alerta').innerHTML = `<div class="alert alert-${tipo}">${msg}</div>`;
+  }
+
+  document.addEventListener('keypress', e => { if (e.key === 'Enter') loginCliente(); });
+</script>
+</body>
+</html>

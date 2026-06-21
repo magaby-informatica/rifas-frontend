@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clientes - Rifas Online</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<nav class="navbar">
+  <div class="navbar-brand">Rifas Online</div>
+  <div class="navbar-user">
+    <span id="nombre-admin">Admin</span>
+    <button class="btn-logout" onclick="logout()">Cerrar Sesion</button>
+  </div>
+</nav>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="sidebar-item" href="dashboard.html">Dashboard</a>
+    <a class="sidebar-item" href="rifas.html">Rifas</a>
+    <a class="sidebar-item active" href="clientes.html">Clientes</a>
+    <a class="sidebar-item" href="numeros.html">Numeros</a>
+    <a class="sidebar-item" href="pagos.html">Pagos</a>
+  </aside>
+  <main class="main-content">
+    <h1 class="page-title">Gestion de Clientes</h1>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Nuevo Cliente</h2>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Cedula</label>
+          <input type="text" id="cedula" placeholder="Numero de cedula">
+        </div>
+        <div class="form-group">
+          <label>Nombre Completo</label>
+          <input type="text" id="nombre" placeholder="Nombre y apellidos">
+        </div>
+        <div class="form-group">
+          <label>Telefono</label>
+          <input type="text" id="telefono" placeholder="Numero de telefono">
+        </div>
+        <div class="form-group">
+          <label>PIN (para acceso del cliente)</label>
+          <input type="text" id="pin" placeholder="PIN de acceso">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="crearCliente()">Registrar Cliente</button>
+      <div id="alerta-cliente"></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Clientes Registrados</h2>
+        <input type="text" id="buscar" placeholder="Buscar cliente..." onkeyup="filtrarClientes()" style="padding:8px;border:1px solid #ddd;border-radius:6px;">
+      </div>
+      <table>
+        <thead>
+          <tr><th>Cedula</th><th>Nombre</th><th>Telefono</th><th>PIN</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="tabla-clientes"><tr><td colspan="5">Cargando...</td></tr></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+<script>
+  const API = "https://rifas-online-zeta.vercel.app";
+  const admin = JSON.parse(localStorage.getItem('admin') || 'null');
+  if (!admin) window.location.href = 'login.html';
+  let todosClientes = [];
+
+  function logout() { localStorage.removeItem('admin'); window.location.href = 'login.html'; }
+
+  async function crearCliente() {
+    const body = {
+      cedula: document.getElementById('cedula').value,
+      nombre_apellidos: document.getElementById('nombre').value,
+      telefono: document.getElementById('telefono').value,
+      pin: document.getElementById('pin').value
+    };
+    if (!body.cedula || !body.nombre_apellidos || !body.pin) {
+      mostrarAlerta('Complete los campos obligatorios', 'error'); return;
+    }
+    try {
+      const res = await fetch(`${API}/clientes/`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (res.ok) { mostrarAlerta('Cliente registrado!', 'success'); cargarClientes(); }
+      else mostrarAlerta(data.detail || 'Error al registrar', 'error');
+    } catch(e) { mostrarAlerta('Error de conexion', 'error'); }
+  }
+
+  function mostrarAlerta(msg, tipo) {
+    document.getElementById('alerta-cliente').innerHTML = `<div class="alert alert-${tipo}">${msg}</div>`;
+  }
+
+  function filtrarClientes() {
+    const buscar = document.getElementById('buscar').value.toLowerCase();
+    const filtrados = todosClientes.filter(c =>
+      c.nombre_apellidos.toLowerCase().includes(buscar) ||
+      c.cedula.includes(buscar) ||
+      c.telefono?.includes(buscar)
+    );
+    renderClientes(filtrados);
+  }
+
+  function renderClientes(clientes) {
+    const tbody = document.getElementById('tabla-clientes');
+    if (clientes.length === 0) { tbody.innerHTML = '<tr><td colspan="5">No hay clientes</td></tr>'; return; }
+    tbody.innerHTML = clientes.map(c => `
+      <tr>
+        <td>${c.cedula}</td>
+        <td>${c.nombre_apellidos}</td>
+        <td>${c.telefono || '-'}</td>
+        <td>${c.pin}</td>
+        <td><button class="btn btn-primary btn-sm" onclick="verNumeros(${c.id_cliente})">Ver Numeros</button></td>
+      </tr>
+    `).join('');
+  }
+
+  function verNumeros(id) { window.location.href = `numeros.html?cliente=${id}`; }
+
+  async function cargarClientes() {
+    try {
+      const res = await fetch(`${API}/clientes/`);
+      todosClientes = await res.json();
+      renderClientes(todosClientes);
+    } catch(e) { document.getElementById('tabla-clientes').innerHTML = '<tr><td colspan="5">Error cargando datos</td></tr>'; }
+  }
+
+  cargarClientes();
+</script>
+</body>
+</html>

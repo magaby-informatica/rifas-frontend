@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Numeros - Rifas Online</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<nav class="navbar">
+  <div class="navbar-brand">Rifas Online</div>
+  <div class="navbar-user">
+    <span id="nombre-admin">Admin</span>
+    <button class="btn-logout" onclick="logout()">Cerrar Sesion</button>
+  </div>
+</nav>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="sidebar-item" href="dashboard.html">Dashboard</a>
+    <a class="sidebar-item" href="rifas.html">Rifas</a>
+    <a class="sidebar-item" href="clientes.html">Clientes</a>
+    <a class="sidebar-item active" href="numeros.html">Numeros</a>
+    <a class="sidebar-item" href="pagos.html">Pagos</a>
+  </aside>
+  <main class="main-content">
+    <h1 class="page-title">Numeros de Rifa</h1>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Seleccionar Rifa</h2>
+      </div>
+      <div class="form-group">
+        <select id="select-rifa" onchange="cargarNumeros()">
+          <option value="">-- Seleccione una rifa --</option>
+        </select>
+      </div>
+    </div>
+    <div class="card" id="card-asignar" style="display:none">
+      <div class="card-header">
+        <h2 class="card-title">Asignar Numero</h2>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Numero</label>
+          <input type="text" id="numero-asignar" placeholder="Ej: 42">
+        </div>
+        <div class="form-group">
+          <label>Cliente</label>
+          <select id="select-cliente">
+            <option value="">-- Seleccione cliente --</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="asignarNumero()">Asignar</button>
+      <div id="alerta-numero"></div>
+    </div>
+    <div class="card" id="card-grid" style="display:none">
+      <div class="card-header">
+        <h2 class="card-title">Cuadricula de Numeros</h2>
+        <div class="leyenda">
+          <span class="leg-disponible">Disponible</span>
+          <span class="leg-debe">Debe</span>
+          <span class="leg-pagado">Pagado</span>
+        </div>
+      </div>
+      <div class="numeros-grid" id="numeros-grid"></div>
+    </div>
+  </main>
+</div>
+<script>
+  const API = "https://rifas-online-zeta.vercel.app";
+  const admin = JSON.parse(localStorage.getItem('admin') || 'null');
+  if (!admin) window.location.href = 'login.html';
+
+  function logout() { localStorage.removeItem('admin'); window.location.href = 'login.html'; }
+
+  async function cargarRifas() {
+    const res = await fetch(`${API}/rifas/`);
+    const rifas = await res.json();
+    const sel = document.getElementById('select-rifa');
+    rifas.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.id_rifa;
+      opt.textContent = `${r.id_rifa} - ${r.loteria} (${r.fecha})`;
+      sel.appendChild(opt);
+    });
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('rifa')) { sel.value = params.get('rifa'); cargarNumeros(); }
+  }
+
+  async function cargarClientes() {
+    const res = await fetch(`${API}/clientes/`);
+    const clientes = await res.json();
+    const sel = document.getElementById('select-cliente');
+    clientes.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id_cliente;
+      opt.textContent = `${c.nombre_apellidos} (${c.cedula})`;
+      sel.appendChild(opt);
+    });
+  }
+
+  async function cargarNumeros() {
+    const idRifa = document.getElementById('select-rifa').value;
+    if (!idRifa) return;
+    document.getElementById('card-asignar').style.display = 'block';
+    document.getElementById('card-grid').style.display = 'block';
+    const res = await fetch(`${API}/numeros/rifa/${idRifa}`);
+    const numeros = await res.json();
+    const grid = document.getElementById('numeros-grid');
+    grid.innerHTML = numeros.map(n => `
+      <div class="numero-cell estado-${n.estado.toLowerCase()}" title="${n.estado}${n.id_cliente ? ' - Cliente #'+n.id_cliente : ''}">
+        ${n.numero}
+      </div>
+    `).join('');
+  }
+
+  async function asignarNumero() {
+    const idRifa = document.getElementById('select-rifa').value;
+    const numero = document.getElementById('numero-asignar').value;
+    const idCliente = document.getElementById('select-cliente').value;
+    if (!idRifa || !numero || !idCliente) { mostrarAlerta('Complete todos los campos', 'error'); return; }
+    try {
+      const res = await fetch(`${API}/numeros/asignar`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id_rifa: parseInt(idRifa), numero, id_cliente: parseInt(idCliente) })
+      });
+      const data = await res.json();
+      if (res.ok) { mostrarAlerta('Numero asignado!', 'success'); cargarNumeros(); }
+      else mostrarAlerta(data.detail || 'Error al asignar', 'error');
+    } catch(e) { mostrarAlerta('Error de conexion', 'error'); }
+  }
+
+  function mostrarAlerta(msg, tipo) {
+    document.getElementById('alerta-numero').innerHTML = `<div class="alert alert-${tipo}">${msg}</div>`;
+  }
+
+  cargarRifas();
+  cargarClientes();
+</script>
+</body>
+</html>

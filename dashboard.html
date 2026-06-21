@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Rifas Online</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<nav class="navbar">
+  <div class="navbar-brand">Rifas Online</div>
+  <div class="navbar-user">
+    <span id="nombre-admin">Admin</span>
+    <button class="btn-logout" onclick="logout()">Cerrar Sesion</button>
+  </div>
+</nav>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="sidebar-item active" href="dashboard.html">Dashboard</a>
+    <a class="sidebar-item" href="rifas.html">Rifas</a>
+    <a class="sidebar-item" href="clientes.html">Clientes</a>
+    <a class="sidebar-item" href="numeros.html">Numeros</a>
+    <a class="sidebar-item" href="pagos.html">Pagos</a>
+  </aside>
+  <main class="main-content">
+    <h1 class="page-title">Dashboard</h1>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-number" id="total-rifas">0</div>
+        <div class="stat-label">Rifas Activas</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="total-clientes">0</div>
+        <div class="stat-label">Clientes</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="total-pagados">0</div>
+        <div class="stat-label">Numeros Pagados</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="total-deben">0</div>
+        <div class="stat-label">Numeros que Deben</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Rifas Recientes</h2>
+        <a href="rifas.html"><button class="btn btn-primary btn-sm">Ver Todas</button></a>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Loteria</th>
+            <th>Premio</th>
+            <th>Fecha</th>
+            <th>Precio Boleta</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-rifas"><tr><td colspan="6">Cargando...</td></tr></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+<script>
+  const API = "https://rifas-online-zeta.vercel.app";
+  const admin = JSON.parse(localStorage.getItem('admin') || 'null');
+  if (!admin) window.location.href = 'login.html';
+  else document.getElementById('nombre-admin').textContent = admin.nombre || 'Admin';
+
+  function logout() {
+    localStorage.removeItem('admin');
+    window.location.href = 'login.html';
+  }
+
+  async function cargarDatos() {
+    try {
+      const res = await fetch(`${API}/rifas/`);
+      const rifas = await res.json();
+      document.getElementById('total-rifas').textContent = rifas.length;
+      const tbody = document.getElementById('tabla-rifas');
+      if (rifas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6">No hay rifas creadas</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rifas.map(r => `
+        <tr>
+          <td>${r.id_rifa}</td>
+          <td>${r.loteria}</td>
+          <td>${r.premio}</td>
+          <td>${r.fecha}</td>
+          <td>$${Number(r.precio_boleta).toLocaleString()}</td>
+          <td><a href="numeros.html?rifa=${r.id_rifa}"><button class="btn btn-primary btn-sm">Ver Numeros</button></a></td>
+        </tr>
+      `).join('');
+    } catch(e) {
+      document.getElementById('tabla-rifas').innerHTML = '<tr><td colspan="6">Error cargando datos</td></tr>';
+    }
+  }
+
+  async function cargarClientes() {
+    try {
+      const res = await fetch(`${API}/clientes/`);
+      const data = await res.json();
+      document.getElementById('total-clientes').textContent = data.length;
+    } catch(e) {}
+  }
+
+  cargarDatos();
+  cargarClientes();
+</script>
+</body>
+</html>
