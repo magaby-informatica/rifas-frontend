@@ -8,14 +8,15 @@
 </head>
 <body>
 <nav class="navbar">
-  <div class="navbar-brand">Rifas Online</div>
+  <button class="btn-hamburger" onclick="toggleSidebar()"><div class="navbar-brand">Rifas Online</div>#9776;</button><div class="navbar-brand">Rifas Online</div>
   <div class="navbar-user">
     <span id="nombre-admin">Admin</span>
     <button class="btn-logout" onclick="logout()">Cerrar Sesion</button>
   </div>
 </nav>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 <div class="layout">
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <a class="sidebar-item" href="dashboard.html">Dashboard</a>
     <a class="sidebar-item" href="rifas.html">Rifas</a>
     <a class="sidebar-item" href="clientes.html">Clientes</a>
@@ -136,6 +137,16 @@
 
   cargarRifas();
   cargarClientes();
+</script>
+<script>
+function toggleSidebar() {
+  document.getElementById("sidebar").classList.toggle("open");
+  document.getElementById("sidebar-overlay").classList.toggle("active");
+}
+function closeSidebar() {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebar-overlay").classList.remove("active");
+}
 </script>
 </body>
 </html>
