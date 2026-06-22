@@ -97,7 +97,7 @@
   async function cargarNumeros() {
     const idRifa = document.getElementById('select-rifa').value;
     if (!idRifa) { document.getElementById('grupo-numero').style.display = 'none'; return; }
-    const res = await fetch(`${API}/numeros/rifa/${idRifa}`);
+    const res = await fetch(`${API}/numeros/rifa/${idRifa}/todos`);
     const numeros = await res.json();
     const sel = document.getElementById('select-numero');
     sel.innerHTML = '<option value="">-- Seleccione un numero --</option>';

@@ -8,7 +8,10 @@
 </head>
 <body>
 <nav class="navbar">
-  <button class="btn-hamburger" onclick="toggleSidebar()"><div class="navbar-brand">Rifas Online</div>#9776;</button><div class="navbar-brand">Rifas Online</div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button class="btn-hamburger" onclick="toggleSidebar()">&#9776;</button>
+    <div class="navbar-brand">Rifas Online</div>
+  </div>
   <div class="navbar-user">
     <span id="nombre-admin">Admin</span>
     <button class="btn-logout" onclick="logout()">Cerrar Sesion</button>
@@ -17,11 +20,11 @@
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 <div class="layout">
   <aside class="sidebar" id="sidebar">
-    <a class="sidebar-item" href="dashboard.html">Dashboard</a>
-    <a class="sidebar-item" href="rifas.html">Rifas</a>
-    <a class="sidebar-item" href="clientes.html">Clientes</a>
-    <a class="sidebar-item active" href="numeros.html">Numeros</a>
-    <a class="sidebar-item" href="pagos.html">Pagos</a>
+    <a class="sidebar-item" href="dashboard.html" onclick="closeSidebar()">Dashboard</a>
+    <a class="sidebar-item" href="rifas.html" onclick="closeSidebar()">Rifas</a>
+    <a class="sidebar-item" href="clientes.html" onclick="closeSidebar()">Clientes</a>
+    <a class="sidebar-item active" href="numeros.html" onclick="closeSidebar()">Numeros</a>
+    <a class="sidebar-item" href="pagos.html" onclick="closeSidebar()">Pagos</a>
   </aside>
   <main class="main-content">
     <h1 class="page-title">Numeros de Rifa</h1>
@@ -71,6 +74,7 @@
   const API = "https://rifas-online-zeta.vercel.app";
   const admin = JSON.parse(localStorage.getItem('admin') || 'null');
   if (!admin) window.location.href = 'login.html';
+  else document.getElementById('nombre-admin').textContent = admin.nombre || 'Admin';
 
   function logout() { localStorage.removeItem('admin'); window.location.href = 'login.html'; }
 
@@ -105,14 +109,18 @@
     if (!idRifa) return;
     document.getElementById('card-asignar').style.display = 'block';
     document.getElementById('card-grid').style.display = 'block';
-    const res = await fetch(`${API}/numeros/rifa/${idRifa}`);
-    const numeros = await res.json();
-    const grid = document.getElementById('numeros-grid');
-    grid.innerHTML = numeros.map(n => `
-      <div class="numero-cell estado-${n.estado.toLowerCase()}" title="${n.estado}${n.id_cliente ? ' - Cliente #'+n.id_cliente : ''}">
-        ${n.numero}
-      </div>
-    `).join('');
+    try {
+      const res = await fetch(`${API}/numeros/rifa/${idRifa}/todos`);
+      const numeros = await res.json();
+      const grid = document.getElementById('numeros-grid');
+      grid.innerHTML = numeros.map(n => `
+        <div class="numero-cell estado-${n.estado.toLowerCase()}" title="${n.estado}${n.id_cliente ? ' - Cliente #'+n.id_cliente : ''}">
+          ${n.numero}
+        </div>
+      `).join('');
+    } catch(e) {
+      document.getElementById('numeros-grid').innerHTML = '<p>Error cargando numeros</p>';
+    }
   }
 
   async function asignarNumero() {
@@ -135,18 +143,17 @@
     document.getElementById('alerta-numero').innerHTML = `<div class="alert alert-${tipo}">${msg}</div>`;
   }
 
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('active');
+  }
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('active');
+  }
+
   cargarRifas();
   cargarClientes();
-</script>
-<script>
-function toggleSidebar() {
-  document.getElementById("sidebar").classList.toggle("open");
-  document.getElementById("sidebar-overlay").classList.toggle("active");
-}
-function closeSidebar() {
-  document.getElementById("sidebar").classList.remove("open");
-  document.getElementById("sidebar-overlay").classList.remove("active");
-}
 </script>
 </body>
 </html>
