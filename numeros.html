@@ -5,6 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Numeros - Rifas Online</title>
   <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .leyenda-btn {
+      padding: 6px 16px; border-radius: 20px; font-size: 13px;
+      font-weight: 600; cursor: pointer; border: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .leyenda-btn.activo { transform: scale(1.1); border-width: 2px; }
+    .leyenda-btn-disponible { background: var(--azul-claro); color: var(--azul); border-color: var(--azul); }
+    .leyenda-btn-debe { background: #fce8e6; color: var(--rojo); border-color: var(--rojo); }
+    .leyenda-btn-pagado { background: #e6f4ea; color: var(--verde); border-color: var(--verde); }
+    .leyenda-btn.inactivo { opacity: 0.35; }
+    .numero-cell {
+      padding: 12px 4px; border-radius: 8px;
+      font-size: 15px; font-weight: 700; text-align: center;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .numero-cell:hover { transform: scale(1.08); }
+    .numero-cell.oculto { display: none; }
+    .estado-disponible { background: var(--azul-claro); color: var(--azul); border: 2px solid var(--azul); }
+    .estado-debe { background: #fce8e6; color: var(--rojo); border: 2px solid var(--rojo); }
+    .estado-pagado { background: #e6f4ea; color: var(--verde); border: 2px solid var(--verde); }
+    .tooltip-numero {
+      display: none; position: fixed; background: #333; color: #fff;
+      padding: 8px 12px; border-radius: 8px; font-size: 13px;
+      z-index: 999; pointer-events: none; max-width: 200px;
+    }
+  </style>
 </head>
 <body>
 <nav class="navbar">
@@ -28,16 +55,16 @@
   </aside>
   <main class="main-content">
     <h1 class="page-title">Numeros de Rifa</h1>
+
     <div class="card">
-      <div class="card-header">
-        <h2 class="card-title">Seleccionar Rifa</h2>
-      </div>
-      <div class="form-group">
+      <div class="form-group" style="margin-bottom:0">
+        <label>Seleccionar Rifa</label>
         <select id="select-rifa" onchange="cargarNumeros()">
           <option value="">-- Seleccione una rifa --</option>
         </select>
       </div>
     </div>
+
     <div class="card" id="card-asignar" style="display:none">
       <div class="card-header">
         <h2 class="card-title">Asignar Numero</h2>
@@ -57,19 +84,33 @@
       <button class="btn btn-primary" onclick="asignarNumero()">Asignar</button>
       <div id="alerta-numero"></div>
     </div>
+
     <div class="card" id="card-grid" style="display:none">
       <div class="card-header">
         <h2 class="card-title">Cuadricula de Numeros</h2>
-        <div class="leyenda">
-          <span class="leg-disponible">Disponible</span>
-          <span class="leg-debe">Debe</span>
-          <span class="leg-pagado">Pagado</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="leyenda-btn leyenda-btn-disponible activo" id="btn-disponible" onclick="filtrar('disponible')">Disponible</button>
+          <button class="leyenda-btn leyenda-btn-debe activo" id="btn-debe" onclick="filtrar('debe')">Debe</button>
+          <button class="leyenda-btn leyenda-btn-pagado activo" id="btn-pagado" onclick="filtrar('pagado')">Pagado</button>
         </div>
       </div>
+      <div id="conteo" style="margin-bottom:12px;color:#666;font-size:13px;"></div>
       <div class="numeros-grid" id="numeros-grid"></div>
+    </div>
+
+    <!-- Panel info cliente al hacer clic en numero -->
+    <div class="card" id="card-info-numero" style="display:none">
+      <div class="card-header">
+        <h2 class="card-title" id="titulo-info-numero">Info del Numero</h2>
+        <button class="btn btn-sm" style="background:#eee;color:#333;" onclick="cerrarInfo()">Cerrar</button>
+      </div>
+      <div id="contenido-info-numero"></div>
     </div>
   </main>
 </div>
+
+<div class="tooltip-numero" id="tooltip"></div>
+
 <script>
   const API = "https://rifas-online-zeta.vercel.app";
   const admin = JSON.parse(localStorage.getItem('admin') || 'null');
@@ -77,6 +118,10 @@
   else document.getElementById('nombre-admin').textContent = admin.nombre || 'Admin';
 
   function logout() { localStorage.removeItem('admin'); window.location.href = 'login.html'; }
+
+  let todosNumeros = [];
+  let filtrosActivos = { disponible: true, debe: true, pagado: true };
+  let clientesMap = {};
 
   async function cargarRifas() {
     const res = await fetch(`${API}/rifas/`);
@@ -97,6 +142,7 @@
     const clientes = await res.json();
     const sel = document.getElementById('select-cliente');
     clientes.forEach(c => {
+      clientesMap[c.id_cliente] = c;
       const opt = document.createElement('option');
       opt.value = c.id_cliente;
       opt.textContent = `${c.nombre_apellidos} (${c.cedula})`;
@@ -109,18 +155,116 @@
     if (!idRifa) return;
     document.getElementById('card-asignar').style.display = 'block';
     document.getElementById('card-grid').style.display = 'block';
+    document.getElementById('card-info-numero').style.display = 'none';
     try {
       const res = await fetch(`${API}/numeros/rifa/${idRifa}/todos`);
-      const numeros = await res.json();
-      const grid = document.getElementById('numeros-grid');
-      grid.innerHTML = numeros.map(n => `
-        <div class="numero-cell estado-${n.estado.toLowerCase()}" title="${n.estado}${n.id_cliente ? ' - Cliente #'+n.id_cliente : ''}">
-          ${n.numero}
-        </div>
-      `).join('');
+      todosNumeros = await res.json();
+      // Ordenar por numero
+      todosNumeros.sort((a, b) => parseInt(a.numero) - parseInt(b.numero));
+      renderGrid();
     } catch(e) {
       document.getElementById('numeros-grid').innerHTML = '<p>Error cargando numeros</p>';
     }
+  }
+
+  function renderGrid() {
+    const grid = document.getElementById('numeros-grid');
+    let visibles = 0;
+    let disp = 0, debe = 0, pagado = 0;
+    todosNumeros.forEach(n => {
+      if (n.estado === 'DISPONIBLE') disp++;
+      else if (n.estado === 'DEBE') debe++;
+      else if (n.estado === 'PAGADO') pagado++;
+    });
+    document.getElementById('conteo').textContent =
+      `Disponibles: ${disp} | Deben: ${debe} | Pagados: ${pagado} | Total: ${todosNumeros.length}`;
+
+    grid.innerHTML = todosNumeros.map(n => {
+      const estado = n.estado.toLowerCase();
+      const oculto = !filtrosActivos[estado] ? 'oculto' : '';
+      if (!oculto) visibles++;
+      const clienteInfo = n.id_cliente && clientesMap[n.id_cliente]
+        ? clientesMap[n.id_cliente].nombre_apellidos
+        : '';
+      return `<div class="numero-cell estado-${estado} ${oculto}"
+        data-id="${n.id_numero}"
+        data-numero="${n.numero}"
+        data-estado="${n.estado}"
+        data-cliente="${clienteInfo}"
+        data-id-cliente="${n.id_cliente || ''}"
+        onclick="verInfoNumero(this)"
+        title="${clienteInfo ? clienteInfo : 'Disponible'}">
+        ${n.numero}
+      </div>`;
+    }).join('');
+  }
+
+  function filtrar(estado) {
+    filtrosActivos[estado] = !filtrosActivos[estado];
+    const btn = document.getElementById(`btn-${estado}`);
+    if (filtrosActivos[estado]) {
+      btn.classList.remove('inactivo');
+      btn.classList.add('activo');
+    } else {
+      btn.classList.add('inactivo');
+      btn.classList.remove('activo');
+    }
+    // Mostrar/ocultar celdas
+    document.querySelectorAll('.numero-cell').forEach(cell => {
+      const est = cell.dataset.estado.toLowerCase();
+      if (filtrosActivos[est]) cell.classList.remove('oculto');
+      else cell.classList.add('oculto');
+    });
+  }
+
+  async function verInfoNumero(cell) {
+    const idNumero = cell.dataset.id;
+    const numero = cell.dataset.numero;
+    const estado = cell.dataset.estado;
+    const cliente = cell.dataset.cliente;
+    const idCliente = cell.dataset.idCliente;
+
+    document.getElementById('titulo-info-numero').textContent = `Numero ${numero}`;
+    document.getElementById('card-info-numero').style.display = 'block';
+
+    let html = `<p><strong>Estado:</strong> ${estado}</p>`;
+    if (cliente) {
+      html += `<p><strong>Cliente:</strong> ${cliente}</p>`;
+    } else {
+      html += `<p><strong>Cliente:</strong> Disponible</p>`;
+    }
+
+    // Cargar resumen de pagos si tiene cliente
+    if (idCliente) {
+      try {
+        const res = await fetch(`${API}/pagos/resumen/${idNumero}`);
+        if (res.ok) {
+          const data = await res.json();
+          html += `
+            <hr style="margin:12px 0;">
+            <p><strong>Precio boleta:</strong> $${Number(data.precio_boleta).toLocaleString()}</p>
+            <p><strong>Total pagado:</strong> $${Number(data.total_pagado).toLocaleString()}</p>
+            <p><strong>Saldo pendiente:</strong> $${Number(data.saldo_pendiente).toLocaleString()}</p>
+          `;
+        }
+        // Historial de pagos
+        const res2 = await fetch(`${API}/pagos/numero/${idNumero}`);
+        const pagos = await res2.json();
+        if (pagos.length > 0) {
+          html += `<hr style="margin:12px 0;"><p><strong>Abonos:</strong></p><table><thead><tr><th>Valor</th><th>Fecha</th></tr></thead><tbody>`;
+          html += pagos.map(p => `<tr><td>$${Number(p.valor).toLocaleString()}</td><td>${new Date(p.fecha_pago).toLocaleDateString()}</td></tr>`).join('');
+          html += `</tbody></table>`;
+        }
+        html += `<br><a href="pagos.html"><button class="btn btn-primary btn-sm" style="width:auto">Registrar Abono</button></a>`;
+      } catch(e) {}
+    }
+
+    document.getElementById('contenido-info-numero').innerHTML = html;
+    document.getElementById('card-info-numero').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function cerrarInfo() {
+    document.getElementById('card-info-numero').style.display = 'none';
   }
 
   async function asignarNumero() {
@@ -141,6 +285,7 @@
 
   function mostrarAlerta(msg, tipo) {
     document.getElementById('alerta-numero').innerHTML = `<div class="alert alert-${tipo}">${msg}</div>`;
+    setTimeout(() => document.getElementById('alerta-numero').innerHTML = '', 3000);
   }
 
   function toggleSidebar() {
