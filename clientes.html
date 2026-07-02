@@ -116,12 +116,27 @@
         <td>${c.nombre_apellidos}</td>
         <td>${c.telefono || '-'}</td>
         <td>${c.pin}</td>
-        <td><button class="btn btn-primary btn-sm" onclick="verNumeros(${c.id_cliente})">Ver Numeros</button></td>
+        <td>
+          <button class="btn btn-primary btn-sm" onclick="verNumeros(${c.id_cliente})">Ver Numeros</button>
+          <button class="btn btn-sm" style="background:#25D366;color:#fff;" data-tel="${c.telefono || ''}" data-msg="${encodeURIComponent('Hola ' + c.nombre_apellidos + ', te contactamos desde Rifas Online.')}" onclick="enviarWhatsAppFromBtn(this)">WhatsApp</button>
+        </td>
       </tr>
     `).join('');
   }
 
   function verNumeros(id) { window.location.href = `numeros.html?cliente=${id}`; }
+
+  function enviarWhatsApp(telefono, mensaje) {
+    if (!telefono) { alert('Este cliente no tiene telefono registrado'); return; }
+    let tel = telefono.replace(/\D/g, '');
+    if (tel.length === 10) tel = '57' + tel;
+    const url = `https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, '_blank');
+  }
+
+  function enviarWhatsAppFromBtn(btn) {
+    enviarWhatsApp(btn.dataset.tel, decodeURIComponent(btn.dataset.msg));
+  }
 
   async function cargarClientes() {
     try {
