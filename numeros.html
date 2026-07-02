@@ -52,6 +52,7 @@
     <a class="sidebar-item" href="clientes.html" onclick="closeSidebar()">Clientes</a>
     <a class="sidebar-item active" href="numeros.html" onclick="closeSidebar()">Numeros</a>
     <a class="sidebar-item" href="pagos.html" onclick="closeSidebar()">Pagos</a>
+    <a class="sidebar-item" href="plantillas.html" onclick="closeSidebar()">Plantillas</a>
   </aside>
   <main class="main-content">
     <h1 class="page-title">Numeros de Rifa</h1>
@@ -123,12 +124,31 @@
   let todosNumeros = [];
   let filtrosActivos = { disponible: true, debe: true, pagado: true };
   let clientesMap = {};
+  let rifasMap = {};
+  let plantillasMap = {};
+
+  async function cargarPlantillas() {
+    try {
+      const res = await fetch(`${API}/plantillas/`);
+      const data = await res.json();
+      data.forEach(p => plantillasMap[p.tipo] = p.mensaje);
+    } catch (e) {}
+  }
+
+  function armarMensaje(tipo, valores) {
+    let texto = plantillasMap[tipo] || '';
+    for (const clave in valores) {
+      texto = texto.replaceAll(`{${clave}}`, valores[clave] ?? '');
+    }
+    return texto;
+  }
 
   async function cargarRifas() {
     const res = await fetch(`${API}/rifas/`);
     const rifas = await res.json();
     const sel = document.getElementById('select-rifa');
     rifas.forEach(r => {
+      rifasMap[r.id_rifa] = r;
       const opt = document.createElement('option');
       opt.value = r.id_rifa;
       opt.textContent = `${r.id_rifa} - ${r.loteria} (${r.fecha})`;
@@ -224,41 +244,51 @@
     const estado = cell.dataset.estado;
     const cliente = cell.dataset.cliente;
     const idCliente = cell.dataset.idCliente;
+    const idRifa = document.getElementById('select-rifa').value;
+    const rifaObj = rifasMap[idRifa] || {};
 
     document.getElementById('titulo-info-numero').textContent = `Numero ${numero}`;
     document.getElementById('card-info-numero').style.display = 'block';
+
+    // Traer resumen de pagos primero (necesario para llenar {valor} y {saldo} del mensaje)
+    let resumenData = null;
+    if (idCliente) {
+      try {
+        const resR = await fetch(`${API}/pagos/resumen/${idNumero}`);
+        if (resR.ok) resumenData = await resR.json();
+      } catch(e) {}
+    }
 
     let html = `<p><strong>Estado:</strong> ${estado}</p>`;
     if (cliente) {
       html += `<p><strong>Cliente:</strong> ${cliente}</p>`;
       const clienteObj = clientesMap[idCliente] || {};
-      let mensajeWA;
-      if (estado === 'PAGADO') {
-        mensajeWA = `Hola ${clienteObj.nombre_apellidos}, tu numero ${numero} ha sido pagado en su totalidad. Gracias por tu compra!`;
-      } else if (estado === 'DEBE') {
-        mensajeWA = `Hola ${clienteObj.nombre_apellidos}, te recordamos que tienes pendiente el pago del numero ${numero}.`;
-      } else {
-        mensajeWA = `Hola ${clienteObj.nombre_apellidos}, has separado el numero ${numero}. Cualquier duda, escribenos.`;
-      }
+
+      const tipoPlantilla = estado === 'DEBE' ? 'COBRO' : 'CONFIRMACION';
+      const mensajeWA = armarMensaje(tipoPlantilla, {
+        nombre: clienteObj.nombre_apellidos,
+        numero: numero,
+        rifa: rifaObj.loteria,
+        valor: resumenData ? Number(resumenData.precio_boleta).toLocaleString() : '',
+        saldo: resumenData ? Number(resumenData.saldo_pendiente).toLocaleString() : ''
+      });
+
       html += `<button class="btn btn-sm" style="background:#25D366;color:#fff;margin-top:4px;" data-tel="${clienteObj.telefono || ''}" data-msg="${encodeURIComponent(mensajeWA)}" onclick="enviarWhatsAppFromBtn(this)">Enviar WhatsApp</button>`;
     } else {
       html += `<p><strong>Cliente:</strong> Disponible</p>`;
     }
 
-    // Cargar resumen de pagos si tiene cliente
+    // Mostrar resumen y abonos si tiene cliente
     if (idCliente) {
+      if (resumenData) {
+        html += `
+          <hr style="margin:12px 0;">
+          <p><strong>Precio boleta:</strong> $${Number(resumenData.precio_boleta).toLocaleString()}</p>
+          <p><strong>Total pagado:</strong> $${Number(resumenData.total_pagado).toLocaleString()}</p>
+          <p><strong>Saldo pendiente:</strong> $${Number(resumenData.saldo_pendiente).toLocaleString()}</p>
+        `;
+      }
       try {
-        const res = await fetch(`${API}/pagos/resumen/${idNumero}`);
-        if (res.ok) {
-          const data = await res.json();
-          html += `
-            <hr style="margin:12px 0;">
-            <p><strong>Precio boleta:</strong> $${Number(data.precio_boleta).toLocaleString()}</p>
-            <p><strong>Total pagado:</strong> $${Number(data.total_pagado).toLocaleString()}</p>
-            <p><strong>Saldo pendiente:</strong> $${Number(data.saldo_pendiente).toLocaleString()}</p>
-          `;
-        }
-        // Historial de pagos
         const res2 = await fetch(`${API}/pagos/numero/${idNumero}`);
         const pagos = await res2.json();
         if (pagos.length > 0) {
@@ -292,7 +322,14 @@
       if (res.ok) {
         mostrarAlerta('Numero asignado!', 'success');
         const clienteObj = clientesMap[idCliente] || {};
-        const mensajeWA = `Hola ${clienteObj.nombre_apellidos}, has separado el numero ${numero} para la rifa. Cualquier duda, escribenos.`;
+        const rifaObj = rifasMap[idRifa] || {};
+        const mensajeWA = armarMensaje('CONFIRMACION', {
+          nombre: clienteObj.nombre_apellidos,
+          numero: numero,
+          rifa: rifaObj.loteria,
+          valor: rifaObj.precio_boleta ? Number(rifaObj.precio_boleta).toLocaleString() : '',
+          saldo: rifaObj.precio_boleta ? Number(rifaObj.precio_boleta).toLocaleString() : ''
+        });
         document.getElementById('wa-asignar').innerHTML =
           `<button class="btn btn-sm" style="background:#25D366;color:#fff;" data-tel="${clienteObj.telefono || ''}" data-msg="${encodeURIComponent(mensajeWA)}" onclick="enviarWhatsAppFromBtn(this)">Enviar WhatsApp al cliente</button>`;
         cargarNumeros();
@@ -329,6 +366,7 @@
 
   cargarRifas();
   cargarClientes();
+  cargarPlantillas();
 </script>
 </body>
 </html>

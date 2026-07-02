@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plantillas de Mensajes - Rifas Online</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  :root{
+    --tinta:#1c2b3a;
+    --papel:#faf6ee;
+    --linea:#e4dcc8;
+    --dorado:#c8963e;
+    --dorado-suave:#f4e6c8;
+    --verde-cobro:#8a3b2b;
+    --verde-confirma:#2b5d4f;
+  }
+
+  .plantillas-wrap{
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  .plantillas-header{
+    margin-bottom: 32px;
+  }
+  .plantillas-header h1{
+    font-size: 26px;
+    color: var(--tinta);
+    margin: 0 0 6px;
+    letter-spacing: .2px;
+  }
+  .plantillas-header p{
+    margin: 0;
+    color: #6b7280;
+    font-size: 14px;
+  }
+
+  .tarjeta-plantilla{
+    background: #fff;
+    border: 1px solid var(--linea);
+    border-radius: 10px;
+    margin-bottom: 28px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(28,43,58,0.06);
+  }
+
+  .tarjeta-cabecera{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--linea);
+  }
+  .tarjeta-cabecera.cobro{ background: #fbf1ec; }
+  .tarjeta-cabecera.confirmacion{ background: #edf5f2; }
+
+  .badge-tipo{
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: #fff;
+  }
+  .badge-tipo.cobro{ background: var(--verde-cobro); }
+  .badge-tipo.confirmacion{ background: var(--verde-confirma); }
+
+  .tarjeta-cabecera h2{
+    font-size: 16px;
+    margin: 0;
+    color: var(--tinta);
+  }
+
+  .tarjeta-cuerpo{
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 24px;
+  }
+  @media (max-width: 760px){
+    .tarjeta-cuerpo{ grid-template-columns: 1fr; }
+  }
+
+  .campo-mensaje label{
+    display:block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4b5563;
+    margin-bottom: 8px;
+  }
+  .campo-mensaje textarea{
+    width: 100%;
+    min-height: 140px;
+    resize: vertical;
+    border: 1px solid var(--linea);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    font-family: inherit;
+    color: var(--tinta);
+    box-sizing: border-box;
+  }
+  .campo-mensaje textarea:focus{
+    outline: none;
+    border-color: var(--dorado);
+    box-shadow: 0 0 0 3px rgba(200,150,62,0.15);
+  }
+
+  .variables{
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .chip-var{
+    font-size: 12px;
+    background: var(--dorado-suave);
+    border: 1px solid var(--dorado);
+    color: #6b4e1e;
+    padding: 4px 9px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: monospace;
+    transition: background .15s;
+  }
+  .chip-var:hover{ background: #eeda9f; }
+
+  .acciones-fila{
+    margin-top: 14px;
+    display:flex;
+    align-items:center;
+    gap: 12px;
+  }
+  .btn-guardar{
+    background: var(--tinta);
+    color: #fff;
+    border: none;
+    padding: 9px 18px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-guardar:hover{ background: #101a24; }
+  .btn-guardar:disabled{ opacity: .6; cursor: default; }
+
+  .estado-guardado{
+    font-size: 12px;
+    color: var(--verde-confirma);
+    opacity: 0;
+    transition: opacity .25s;
+  }
+  .estado-guardado.mostrar{ opacity: 1; }
+
+  .vista-previa{
+    background: var(--papel);
+    border: 1px dashed var(--linea);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .vista-previa label{
+    display:block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4b5563;
+    margin-bottom: 8px;
+  }
+  .burbuja-whatsapp{
+    background: #dcf8c6;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #1c2b1c;
+    white-space: pre-wrap;
+    word-break: break-word;
+    position: relative;
+  }
+  .burbuja-whatsapp::after{
+    content: "";
+    position: absolute;
+    top: 10px;
+    left: -6px;
+    border-width: 6px 8px 6px 0;
+    border-style: solid;
+    border-color: transparent #dcf8c6 transparent transparent;
+  }
+
+  .nota-variables{
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: #8a8f98;
+  }
+
+  .cargando-msg{
+    padding: 40px;
+    text-align: center;
+    color: #8a8f98;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-layout">
+  <button class="menu-toggle" id="menuToggle">☰</button>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">🎟️ Rifas Online</div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Panel</a>
+      <a href="rifas.html">Rifas</a>
+      <a href="clientes.html">Clientes</a>
+      <a href="numeros.html">Números</a>
+      <a href="pagos.html">Pagos</a>
+      <a href="plantillas.html" class="activo">Plantillas</a>
+    </nav>
+  </aside>
+
+  <main class="contenido-principal">
+    <div class="plantillas-wrap">
+
+      <div class="plantillas-header">
+        <h1>Plantillas de mensajes</h1>
+        <p>Personaliza los textos que se usan al enviar mensajes por WhatsApp a tus clientes. Usa las variables para que cada mensaje se complete automáticamente.</p>
+      </div>
+
+      <div id="contenedorPlantillas">
+        <div class="cargando-msg">Cargando plantillas...</div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+const API_URL = "https://rifas-online-zeta.vercel.app";
+
+const DATOS_EJEMPLO = {
+  nombre: "María Torres",
+  numero: "047",
+  rifa: "Combo Navideño",
+  valor: "50.000",
+  saldo: "20.000"
+};
+
+const CONFIG_TIPOS = {
+  COBRO: { titulo: "Mensaje de cobro", clase: "cobro" },
+  CONFIRMACION: { titulo: "Mensaje de confirmación", clase: "confirmacion" }
+};
+
+const VARIABLES = ["{nombre}", "{numero}", "{rifa}", "{valor}", "{saldo}"];
+
+let plantillasData = {};
+
+function armarVistaPrevia(texto){
+  let resultado = texto || "";
+  for (const clave in DATOS_EJEMPLO){
+    resultado = resultado.replaceAll("{" + clave + "}", DATOS_EJEMPLO[clave]);
+  }
+  return resultado;
+}
+
+function renderTarjeta(tipo, mensaje){
+  const cfg = CONFIG_TIPOS[tipo];
+  const chips = VARIABLES.map(v => `<span class="chip-var" data-var="${v}" data-tipo="${tipo}">${v}</span>`).join("");
+
+  return `
+    <div class="tarjeta-plantilla" data-tipo="${tipo}">
+      <div class="tarjeta-cabecera ${cfg.clase}">
+        <span class="badge-tipo ${cfg.clase}">${tipo}</span>
+        <h2>${cfg.titulo}</h2>
+      </div>
+      <div class="tarjeta-cuerpo">
+        <div class="campo-mensaje">
+          <label>Texto del mensaje</label>
+          <textarea id="textarea-${tipo}">${mensaje}</textarea>
+          <div class="variables">${chips}</div>
+          <p class="nota-variables">Haz clic en una variable para insertarla donde tengas el cursor.</p>
+          <div class="acciones-fila">
+            <button class="btn-guardar" data-tipo="${tipo}">Guardar cambios</button>
+            <span class="estado-guardado" id="estado-${tipo}">Guardado ✓</span>
+          </div>
+        </div>
+        <div class="vista-previa">
+          <label>Vista previa (con datos de ejemplo)</label>
+          <div class="burbuja-whatsapp" id="preview-${tipo}">${armarVistaPrevia(mensaje)}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function cargarPlantillas(){
+  try{
+    const resp = await fetch(`${API_URL}/plantillas/`);
+    const data = await resp.json();
+    const contenedor = document.getElementById("contenedorPlantillas");
+    contenedor.innerHTML = "";
+
+    data.forEach(p => {
+      plantillasData[p.tipo] = p.mensaje;
+      contenedor.innerHTML += renderTarjeta(p.tipo, p.mensaje);
+    });
+
+    activarEventos();
+  } catch(err){
+    document.getElementById("contenedorPlantillas").innerHTML =
+      `<div class="cargando-msg">No se pudieron cargar las plantillas. Verifica tu conexión.</div>`;
+  }
+}
+
+function activarEventos(){
+  document.querySelectorAll(".chip-var").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const tipo = chip.dataset.tipo;
+      const variable = chip.dataset.var;
+      const textarea = document.getElementById(`textarea-${tipo}`);
+      const inicio = textarea.selectionStart;
+      const fin = textarea.selectionEnd;
+      const texto = textarea.value;
+      textarea.value = texto.slice(0, inicio) + variable + texto.slice(fin);
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = inicio + variable.length;
+      actualizarPreview(tipo);
+    });
+  });
+
+  document.querySelectorAll("textarea[id^='textarea-']").forEach(ta => {
+    ta.addEventListener("input", () => {
+      const tipo = ta.id.replace("textarea-", "");
+      actualizarPreview(tipo);
+    });
+  });
+
+  document.querySelectorAll(".btn-guardar").forEach(btn => {
+    btn.addEventListener("click", () => guardarPlantilla(btn.dataset.tipo));
+  });
+}
+
+function actualizarPreview(tipo){
+  const texto = document.getElementById(`textarea-${tipo}`).value;
+  document.getElementById(`preview-${tipo}`).textContent = armarVistaPrevia(texto);
+}
+
+async function guardarPlantilla(tipo){
+  const btn = document.querySelector(`.btn-guardar[data-tipo="${tipo}"]`);
+  const estado = document.getElementById(`estado-${tipo}`);
+  const mensaje = document.getElementById(`textarea-${tipo}`).value;
+
+  btn.disabled = true;
+  btn.textContent = "Guardando...";
+
+  try{
+    const resp = await fetch(`${API_URL}/plantillas/${tipo}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mensaje })
+    });
+
+    if(!resp.ok) throw new Error("Error al guardar");
+
+    estado.classList.add("mostrar");
+    setTimeout(() => estado.classList.remove("mostrar"), 2000);
+  } catch(err){
+    alert("No se pudo guardar la plantilla. Intenta de nuevo.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Guardar cambios";
+  }
+}
+
+document.getElementById("menuToggle")?.addEventListener("click", () => {
+  document.getElementById("sidebar").classList.toggle("abierto");
+});
+
+cargarPlantillas();
+</script>
+
+</body>
+</html>
