@@ -5,6 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rifas Online - Cliente</title>
   <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .tabs-cliente { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .tab-btn {
+      padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: 2px solid var(--azul); background: #fff; color: var(--azul);
+    }
+    .tab-btn.activo { background: var(--azul); color: #fff; }
+    .vista-tab { display: none; }
+    .vista-tab.activo { display: block; }
+    .numero-cell-cliente {
+      padding: 12px 4px; border-radius: 8px; font-size: 15px; font-weight: 700;
+      text-align: center; cursor: pointer; transition: all 0.15s;
+      background: var(--azul-claro); color: var(--azul); border: 2px solid var(--azul);
+    }
+    .numero-cell-cliente:hover { transform: scale(1.08); }
+    .numeros-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap: 8px; }
+  </style>
 </head>
 <body>
   <div class="login-container">
@@ -29,12 +46,47 @@
       </div>
     </nav>
     <div class="main-content">
-      <h1 class="page-title">Mis Numeros</h1>
-      <div id="mis-numeros"></div>
+      <h1 class="page-title">Mi Cuenta</h1>
+
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-number" id="stat-total-numeros">0</div><div class="stat-label">Numeros Tengo</div></div>
+        <div class="stat-card"><div class="stat-number" id="stat-total-pagado">$0</div><div class="stat-label">Total Abonado</div></div>
+        <div class="stat-card"><div class="stat-number" id="stat-total-debe">$0</div><div class="stat-label">Total que Debo</div></div>
+      </div>
+
+      <div class="tabs-cliente">
+        <button class="tab-btn activo" id="tab-mis-numeros" onclick="cambiarTab('mis-numeros')">Mis Numeros</button>
+        <button class="tab-btn" id="tab-elegir" onclick="cambiarTab('elegir')">Elegir Numero</button>
+      </div>
+
+      <div class="vista-tab activo" id="vista-mis-numeros">
+        <div id="mis-numeros"></div>
+      </div>
+
+      <div class="vista-tab" id="vista-elegir">
+        <div class="card">
+          <div class="form-group" style="margin-bottom:0">
+            <label>Seleccionar Rifa</label>
+            <select id="select-rifa-cliente" onchange="cargarDisponibles()">
+              <option value="">-- Seleccione una rifa --</option>
+            </select>
+          </div>
+        </div>
+        <div class="card" id="card-disponibles" style="display:none">
+          <div class="card-header">
+            <h2 class="card-title">Numeros Disponibles</h2>
+          </div>
+          <p style="font-size:13px;color:#666;margin-bottom:12px;">Toca un numero para apartarlo.</p>
+          <div class="numeros-grid" id="grid-disponibles"></div>
+        </div>
+        <div id="msg-eleccion"></div>
+      </div>
+
     </div>
   </div>
 <script>
   const API = "https://rifas-online-zeta.vercel.app";
+  let clienteActual = null;
 
   async function loginCliente() {
     const pin = document.getElementById('pin').value;
@@ -46,29 +98,134 @@
       });
       const data = await res.json();
       if (res.ok) {
+        clienteActual = data;
         localStorage.setItem('cliente', JSON.stringify(data));
         document.querySelector('.login-container').style.display = 'none';
         document.getElementById('vista-cliente').style.display = 'block';
         document.getElementById('nombre-cliente').textContent = data.nombre;
         cargarMisNumeros(data.id_cliente);
+        cargarRifasParaElegir();
       } else mostrarAlerta(data.detail || 'PIN incorrecto', 'error');
     } catch(e) { mostrarAlerta('Error de conexion', 'error'); }
   }
 
+  function cambiarTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'));
+    document.querySelectorAll('.vista-tab').forEach(v => v.classList.remove('activo'));
+    document.getElementById(`tab-${tab}`).classList.add('activo');
+    document.getElementById(`vista-${tab}`).classList.add('activo');
+  }
+
   async function cargarMisNumeros(idCliente) {
+    const div = document.getElementById('mis-numeros');
     try {
       const res = await fetch(`${API}/numeros/cliente/${idCliente}`);
       const numeros = await res.json();
-      const div = document.getElementById('mis-numeros');
-      if (numeros.length === 0) { div.innerHTML = '<p>No tienes numeros asignados aun.</p>'; return; }
-      div.innerHTML = numeros.map(n => `
-        <div class="card" style="margin-bottom:16px;">
-          <h3>Numero: ${n.numero}</h3>
-          <p>Estado: <strong>${n.estado}</strong></p>
-          <p>Rifa ID: ${n.id_rifa}</p>
-        </div>
-      `).join('');
+      if (numeros.length === 0) {
+        div.innerHTML = '<p>No tienes numeros asignados aun. Ve a "Elegir Numero" para apartar uno.</p>';
+        document.getElementById('stat-total-numeros').textContent = '0';
+        document.getElementById('stat-total-pagado').textContent = '$0';
+        document.getElementById('stat-total-debe').textContent = '$0';
+        return;
+      }
+
+      div.innerHTML = '<p>Cargando detalles...</p>';
+      let html = '';
+      let totalPagado = 0;
+      let totalDebe = 0;
+
+      for (const n of numeros) {
+        let resumenHtml = '';
+        try {
+          const resR = await fetch(`${API}/pagos/resumen/${n.id_numero}`);
+          if (resR.ok) {
+            const data = await resR.json();
+            totalPagado += Number(data.total_pagado);
+            totalDebe += Number(data.saldo_pendiente);
+            resumenHtml = `
+              <p>Precio boleta: <strong>$${Number(data.precio_boleta).toLocaleString()}</strong></p>
+              <p>Total abonado: <strong>$${Number(data.total_pagado).toLocaleString()}</strong></p>
+              <p>Saldo pendiente: <strong>$${Number(data.saldo_pendiente).toLocaleString()}</strong></p>
+            `;
+          }
+        } catch(e) {}
+
+        html += `
+          <div class="card" style="margin-bottom:16px;">
+            <h3>Numero: ${n.numero}</h3>
+            <p>Estado: <strong>${n.estado}</strong></p>
+            ${resumenHtml}
+          </div>
+        `;
+      }
+
+      div.innerHTML = html;
+      document.getElementById('stat-total-numeros').textContent = numeros.length;
+      document.getElementById('stat-total-pagado').textContent = '$' + totalPagado.toLocaleString();
+      document.getElementById('stat-total-debe').textContent = '$' + totalDebe.toLocaleString();
+    } catch(e) {
+      div.innerHTML = '<p>Error cargando tus numeros.</p>';
+    }
+  }
+
+  async function cargarRifasParaElegir() {
+    try {
+      const res = await fetch(`${API}/rifas/`);
+      const rifas = await res.json();
+      const sel = document.getElementById('select-rifa-cliente');
+      sel.innerHTML = '<option value="">-- Seleccione una rifa --</option>';
+      rifas.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id_rifa;
+        opt.textContent = `${r.loteria} - ${r.premio} (${r.fecha})`;
+        sel.appendChild(opt);
+      });
     } catch(e) {}
+  }
+
+  async function cargarDisponibles() {
+    const idRifa = document.getElementById('select-rifa-cliente').value;
+    const cardDisp = document.getElementById('card-disponibles');
+    if (!idRifa) { cardDisp.style.display = 'none'; return; }
+    try {
+      const res = await fetch(`${API}/numeros/disponibles/${idRifa}`);
+      const disponibles = await res.json();
+      disponibles.sort((a, b) => parseInt(a.numero) - parseInt(b.numero));
+      const grid = document.getElementById('grid-disponibles');
+      if (disponibles.length === 0) {
+        grid.innerHTML = '<p>No quedan numeros disponibles en esta rifa.</p>';
+      } else {
+        grid.innerHTML = disponibles.map(n => `
+          <div class="numero-cell-cliente" onclick="elegirNumero(${idRifa}, '${n.numero}')">${n.numero}</div>
+        `).join('');
+      }
+      cardDisp.style.display = 'block';
+    } catch(e) {
+      document.getElementById('grid-disponibles').innerHTML = '<p>Error cargando numeros disponibles.</p>';
+    }
+  }
+
+  async function elegirNumero(idRifa, numero) {
+    if (!clienteActual) return;
+    if (!confirm(`Deseas apartar el numero ${numero}?`)) return;
+    const msgDiv = document.getElementById('msg-eleccion');
+    try {
+      const res = await fetch(`${API}/numeros/asignar`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id_rifa: parseInt(idRifa), numero, id_cliente: clienteActual.id_cliente })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        msgDiv.innerHTML = `<div class="alert alert-success">Numero ${numero} apartado correctamente!</div>`;
+        cargarDisponibles();
+        cargarMisNumeros(clienteActual.id_cliente);
+        setTimeout(() => cambiarTab('mis-numeros'), 1200);
+      } else {
+        msgDiv.innerHTML = `<div class="alert alert-error">${data.detail || 'No se pudo apartar el numero'}</div>`;
+      }
+    } catch(e) {
+      msgDiv.innerHTML = '<div class="alert alert-error">Error de conexion</div>';
+    }
   }
 
   function logoutCliente() {
