@@ -273,7 +273,11 @@
         saldo: resumenData ? Number(resumenData.saldo_pendiente).toLocaleString() : ''
       });
 
-      html += `<button class="btn btn-sm" style="background:#25D366;color:#fff;margin-top:4px;" data-tel="${clienteObj.telefono || ''}" data-msg="${encodeURIComponent(mensajeWA)}" onclick="enviarWhatsAppFromBtn(this)">Enviar WhatsApp</button>`;
+      html += `
+        <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">
+          <button class="btn btn-sm" style="background:#25D366;color:#fff;" data-tel="${clienteObj.telefono || ''}" data-msg="${encodeURIComponent(mensajeWA)}" onclick="enviarWhatsAppFromBtn(this,'normal')">WhatsApp</button>
+          <button class="btn btn-sm" style="background:#075E54;color:#fff;" data-tel="${clienteObj.telefono || ''}" data-msg="${encodeURIComponent(mensajeWA)}" onclick="enviarWhatsAppFromBtn(this,'business')">WhatsApp Business</button>
+        </div>`;
     } else {
       html += `<p><strong>Cliente:</strong> Disponible</p>`;
     }
@@ -330,8 +334,11 @@
           valor: rifaObj.precio_boleta ? Number(rifaObj.precio_boleta).toLocaleString() : '',
           saldo: rifaObj.precio_boleta ? Number(rifaObj.precio_boleta).toLocaleString() : ''
         });
-        document.getElementById('wa-asignar').innerHTML =
-          `<button class="btn btn-sm" style="background:#25D366;color:#fff;" data-tel="${clienteObj.telefono || ''}" data-msg="${encodeURIComponent(mensajeWA)}" onclick="enviarWhatsAppFromBtn(this)">Enviar WhatsApp al cliente</button>`;
+        document.getElementById('wa-asignar').innerHTML = `
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-sm" style="background:#25D366;color:#fff;" data-tel="${clienteObj.telefono || ''}" data-msg="${encodeURIComponent(mensajeWA)}" onclick="enviarWhatsAppFromBtn(this,'normal')">WhatsApp</button>
+            <button class="btn btn-sm" style="background:#075E54;color:#fff;" data-tel="${clienteObj.telefono || ''}" data-msg="${encodeURIComponent(mensajeWA)}" onclick="enviarWhatsAppFromBtn(this,'business')">WhatsApp Business</button>
+          </div>`;
         cargarNumeros();
       }
       else mostrarAlerta(data.detail || 'Error al asignar', 'error');
@@ -343,16 +350,25 @@
     setTimeout(() => document.getElementById('alerta-numero').innerHTML = '', 3000);
   }
 
-  function enviarWhatsApp(telefono, mensaje) {
+  function enviarWhatsApp(telefono, mensaje, appTipo) {
     if (!telefono) { alert('Este cliente no tiene telefono registrado'); return; }
     let tel = telefono.replace(/\D/g, '');
     if (tel.length === 10) tel = '57' + tel;
-    const url = `https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`;
-    window.open(url, '_blank');
+    const texto = encodeURIComponent(mensaje);
+    const esAndroid = /Android/i.test(navigator.userAgent);
+
+    if (esAndroid) {
+      // En Android se puede pedir explicitamente la app normal o Business
+      const pkg = appTipo === 'business' ? 'com.whatsapp.w4b' : 'com.whatsapp';
+      window.location.href = `intent://send?phone=${tel}&text=${texto}#Intent;package=${pkg};scheme=whatsapp;end`;
+    } else {
+      // iPhone/PC: no se puede elegir la app, abre la que tengas configurada
+      window.open(`https://wa.me/${tel}?text=${texto}`, '_blank');
+    }
   }
 
-  function enviarWhatsAppFromBtn(btn) {
-    enviarWhatsApp(btn.dataset.tel, decodeURIComponent(btn.dataset.msg));
+  function enviarWhatsAppFromBtn(btn, appTipo) {
+    enviarWhatsApp(btn.dataset.tel, decodeURIComponent(btn.dataset.msg), appTipo);
   }
 
   function toggleSidebar() {
