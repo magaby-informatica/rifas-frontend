@@ -120,6 +120,17 @@
   if (!admin) window.location.href = 'login.html';
   let todosClientes = [];
   let ordenActual = { campo: null, asc: true };
+  let plantillaCliente = "Hola {nombre}, te contactamos desde Rifas Online.";
+
+  async function cargarPlantillaCliente() {
+    try {
+      const res = await fetch(`${API}/plantillas/CLIENTE`);
+      if (res.ok) {
+        const data = await res.json();
+        plantillaCliente = data.mensaje;
+      }
+    } catch (e) { /* si falla, se usa el mensaje por defecto */ }
+  }
 
   function logout() { localStorage.removeItem('admin'); window.location.href = 'login.html'; }
 
@@ -203,6 +214,12 @@
     renderClientes(lista);
   }
 
+  function armarMensajeCliente(c) {
+    return plantillaCliente
+      .replaceAll('{nombre}', c.nombre_apellidos)
+      .replaceAll('{pin}', c.pin);
+  }
+
   function renderClientes(clientes) {
     const tbody = document.getElementById('tabla-clientes');
     if (clientes.length === 0) { tbody.innerHTML = '<tr><td colspan="5">No hay clientes</td></tr>'; return; }
@@ -215,7 +232,7 @@
         <td>
           <button class="btn btn-primary btn-sm" onclick="verNumeros(${c.id_cliente})">Ver Numeros</button>
           <button class="btn btn-sm" onclick="abrirEdicion(${c.id_cliente})">Editar</button>
-          <button class="btn btn-sm" style="background:#25D366;color:#fff;" data-tel="${c.telefono || ''}" data-msg="${encodeURIComponent('Hola ' + c.nombre_apellidos + ', te contactamos desde Rifas Online.')}" onclick="enviarWhatsAppFromBtn(this)">WhatsApp</button>
+          <button class="btn btn-sm" style="background:#25D366;color:#fff;" data-tel="${c.telefono || ''}" data-msg="${encodeURIComponent(armarMensajeCliente(c))}" onclick="enviarWhatsAppFromBtn(this)">WhatsApp</button>
         </td>
       </tr>
     `).join('');
@@ -288,7 +305,7 @@
     } catch(e) { document.getElementById('tabla-clientes').innerHTML = '<tr><td colspan="5">Error cargando datos</td></tr>'; }
   }
 
-  cargarClientes();
+  cargarPlantillaCliente().then(cargarClientes);
 </script>
 <script>
 function toggleSidebar() {

@@ -55,6 +55,7 @@
   }
   .tarjeta-cabecera.cobro{ background: #fbf1ec; }
   .tarjeta-cabecera.confirmacion{ background: #edf5f2; }
+  .tarjeta-cabecera.cliente{ background: #f0eefc; }
 
   .badge-tipo{
     font-size: 11px;
@@ -67,6 +68,7 @@
   }
   .badge-tipo.cobro{ background: var(--verde-cobro); }
   .badge-tipo.confirmacion{ background: var(--verde-confirma); }
+  .badge-tipo.cliente{ background: #5b4b9e; }
 
   .tarjeta-cabecera h2{
     font-size: 16px;
@@ -245,15 +247,21 @@ const DATOS_EJEMPLO = {
   numero: "047",
   rifa: "Combo Navideño",
   valor: "50.000",
-  saldo: "20.000"
+  saldo: "20.000",
+  pin: "12"
 };
 
 const CONFIG_TIPOS = {
   COBRO: { titulo: "Mensaje de cobro", clase: "cobro" },
-  CONFIRMACION: { titulo: "Mensaje de confirmación", clase: "confirmacion" }
+  CONFIRMACION: { titulo: "Mensaje de confirmación", clase: "confirmacion" },
+  CLIENTE: { titulo: "Mensaje de bienvenida a cliente nuevo", clase: "cliente" }
 };
 
-const VARIABLES = ["{nombre}", "{numero}", "{rifa}", "{valor}", "{saldo}"];
+const VARIABLES_POR_TIPO = {
+  COBRO: ["{nombre}", "{numero}", "{rifa}", "{valor}", "{saldo}"],
+  CONFIRMACION: ["{nombre}", "{numero}", "{rifa}", "{valor}", "{saldo}"],
+  CLIENTE: ["{nombre}", "{pin}"]
+};
 
 let plantillasData = {};
 
@@ -267,7 +275,7 @@ function armarVistaPrevia(texto){
 
 function renderTarjeta(tipo, mensaje){
   const cfg = CONFIG_TIPOS[tipo];
-  const chips = VARIABLES.map(v => `<span class="chip-var" data-var="${v}" data-tipo="${tipo}">${v}</span>`).join("");
+  const chips = VARIABLES_POR_TIPO[tipo].map(v => `<span class="chip-var" data-var="${v}" data-tipo="${tipo}">${v}</span>`).join("");
 
   return `
     <div class="tarjeta-plantilla" data-tipo="${tipo}">
