@@ -37,6 +37,7 @@
     <a class="sidebar-item active" href="clientes.html">Clientes</a>
     <a class="sidebar-item" href="numeros.html">Numeros</a>
     <a class="sidebar-item" href="pagos.html">Pagos</a>
+    <a class="sidebar-item" href="plantillas.html">Plantillas</a>
   </aside>
   <main class="main-content">
     <h1 class="page-title">Gestion de Clientes</h1>
@@ -232,7 +233,8 @@
         <td>
           <button class="btn btn-primary btn-sm" onclick="verNumeros(${c.id_cliente})">Ver Numeros</button>
           <button class="btn btn-sm" onclick="abrirEdicion(${c.id_cliente})">Editar</button>
-          <button class="btn btn-sm" style="background:#25D366;color:#fff;" data-tel="${c.telefono || ''}" data-msg="${encodeURIComponent(armarMensajeCliente(c))}" onclick="enviarWhatsAppFromBtn(this)">WhatsApp</button>
+          <button class="btn btn-sm" style="background:#25D366;color:#fff;" data-tel="${c.telefono || ''}" data-msg="${encodeURIComponent(armarMensajeCliente(c))}" onclick="enviarWhatsAppFromBtn(this,'normal')">WhatsApp</button>
+          <button class="btn btn-sm" style="background:#075E54;color:#fff;" data-tel="${c.telefono || ''}" data-msg="${encodeURIComponent(armarMensajeCliente(c))}" onclick="enviarWhatsAppFromBtn(this,'business')">WhatsApp Business</button>
         </td>
       </tr>
     `).join('');
@@ -240,16 +242,23 @@
 
   function verNumeros(id) { window.location.href = `numeros.html?cliente=${id}`; }
 
-  function enviarWhatsApp(telefono, mensaje) {
+  function enviarWhatsApp(telefono, mensaje, appTipo) {
     if (!telefono) { alert('Este cliente no tiene telefono registrado'); return; }
     let tel = telefono.replace(/\D/g, '');
     if (tel.length === 10) tel = '57' + tel;
-    const url = `https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`;
-    window.open(url, '_blank');
+    const texto = encodeURIComponent(mensaje);
+    const esAndroid = /Android/i.test(navigator.userAgent);
+
+    if (esAndroid) {
+      const pkg = appTipo === 'business' ? 'com.whatsapp.w4b' : 'com.whatsapp';
+      window.location.href = `intent://send?phone=${tel}&text=${texto}#Intent;package=${pkg};scheme=whatsapp;end`;
+    } else {
+      window.open(`https://wa.me/${tel}?text=${texto}`, '_blank');
+    }
   }
 
-  function enviarWhatsAppFromBtn(btn) {
-    enviarWhatsApp(btn.dataset.tel, decodeURIComponent(btn.dataset.msg));
+  function enviarWhatsAppFromBtn(btn, appTipo) {
+    enviarWhatsApp(btn.dataset.tel, decodeURIComponent(btn.dataset.msg), appTipo);
   }
 
   function abrirEdicion(id) {
