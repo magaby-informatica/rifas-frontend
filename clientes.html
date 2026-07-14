@@ -5,10 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Clientes - Rifas Online</title>
   <link rel="stylesheet" href="css/styles.css">
+  <style>
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { text-decoration: underline; }
+    th.sortable .arrow { font-size: 11px; opacity: 0.6; margin-left: 4px; }
+    .modal-overlay {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+      background: #fff; border-radius: 10px; padding: 24px; width: 90%; max-width: 420px;
+    }
+    .modal-box h3 { margin-top: 0; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
+  </style>
 </head>
 <body>
 <nav class="navbar">
-  <button class="btn-hamburger" onclick="toggleSidebar()"><div class="navbar-brand">Rifas Online</div>#9776;</button><div class="navbar-brand">Rifas Online</div>
+  <button class="btn-hamburger" onclick="toggleSidebar()"><div class="navbar-brand">Rifas Online</div>&#9776;</button><div class="navbar-brand">Rifas Online</div>
   <div class="navbar-user">
     <span id="nombre-admin">Admin</span>
     <button class="btn-logout" onclick="logout()">Cerrar Sesion</button>
@@ -32,7 +47,7 @@
       <div class="form-grid">
         <div class="form-group">
           <label>Cedula</label>
-          <input type="text" id="cedula" placeholder="Numero de cedula">
+          <input type="text" id="cedula" placeholder="Numero de cedula (opcional, se autoasigna)">
         </div>
         <div class="form-group">
           <label>Nombre Completo</label>
@@ -44,7 +59,7 @@
         </div>
         <div class="form-group">
           <label>PIN (para acceso del cliente)</label>
-          <input type="text" id="pin" placeholder="PIN de acceso">
+          <input type="text" id="pin" placeholder="PIN de acceso (opcional, se autoasigna)">
         </div>
       </div>
       <button class="btn btn-primary" onclick="crearCliente()">Registrar Cliente</button>
@@ -57,30 +72,69 @@
       </div>
       <table>
         <thead>
-          <tr><th>Cedula</th><th>Nombre</th><th>Telefono</th><th>PIN</th><th>Acciones</th></tr>
+          <tr>
+            <th class="sortable" onclick="ordenarPor('cedula')">Cedula <span class="arrow" id="arrow-cedula"></span></th>
+            <th class="sortable" onclick="ordenarPor('nombre_apellidos')">Nombre <span class="arrow" id="arrow-nombre_apellidos"></span></th>
+            <th class="sortable" onclick="ordenarPor('telefono')">Telefono <span class="arrow" id="arrow-telefono"></span></th>
+            <th class="sortable" onclick="ordenarPor('pin')">PIN <span class="arrow" id="arrow-pin"></span></th>
+            <th>Acciones</th>
+          </tr>
         </thead>
         <tbody id="tabla-clientes"><tr><td colspan="5">Cargando...</td></tr></tbody>
       </table>
     </div>
   </main>
 </div>
+
+<div class="modal-overlay" id="modal-editar">
+  <div class="modal-box">
+    <h3>Editar Cliente</h3>
+    <input type="hidden" id="edit-id">
+    <div class="form-group">
+      <label>Cedula</label>
+      <input type="text" id="edit-cedula">
+    </div>
+    <div class="form-group">
+      <label>Nombre Completo</label>
+      <input type="text" id="edit-nombre">
+    </div>
+    <div class="form-group">
+      <label>Telefono</label>
+      <input type="text" id="edit-telefono">
+    </div>
+    <div class="form-group">
+      <label>PIN</label>
+      <input type="text" id="edit-pin">
+    </div>
+    <div id="alerta-editar"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="guardarEdicion()">Guardar Cambios</button>
+      <button class="btn" onclick="cerrarModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <script>
   const API = "https://rifas-online-zeta.vercel.app";
   const admin = JSON.parse(localStorage.getItem('admin') || 'null');
   if (!admin) window.location.href = 'login.html';
   let todosClientes = [];
+  let ordenActual = { campo: null, asc: true };
 
   function logout() { localStorage.removeItem('admin'); window.location.href = 'login.html'; }
 
   async function crearCliente() {
     const body = {
-      cedula: document.getElementById('cedula').value,
       nombre_apellidos: document.getElementById('nombre').value,
-      telefono: document.getElementById('telefono').value,
-      pin: document.getElementById('pin').value
+      telefono: document.getElementById('telefono').value
     };
-    if (!body.cedula || !body.nombre_apellidos || !body.pin) {
-      mostrarAlerta('Complete los campos obligatorios', 'error'); return;
+    const cedulaVal = document.getElementById('cedula').value.trim();
+    const pinVal = document.getElementById('pin').value.trim();
+    if (cedulaVal) body.cedula = parseInt(cedulaVal, 10);
+    if (pinVal) body.pin = pinVal;
+
+    if (!body.nombre_apellidos) {
+      mostrarAlerta('El nombre es obligatorio', 'error'); return;
     }
     try {
       const res = await fetch(`${API}/clientes/`, {
@@ -88,7 +142,14 @@
         body: JSON.stringify(body)
       });
       const data = await res.json();
-      if (res.ok) { mostrarAlerta('Cliente registrado!', 'success'); cargarClientes(); }
+      if (res.ok) {
+        mostrarAlerta('Cliente registrado!', 'success');
+        document.getElementById('cedula').value = '';
+        document.getElementById('nombre').value = '';
+        document.getElementById('telefono').value = '';
+        document.getElementById('pin').value = '';
+        cargarClientes();
+      }
       else mostrarAlerta(data.detail || 'Error al registrar', 'error');
     } catch(e) { mostrarAlerta('Error de conexion', 'error'); }
   }
@@ -101,10 +162,45 @@
     const buscar = document.getElementById('buscar').value.toLowerCase();
     const filtrados = todosClientes.filter(c =>
       c.nombre_apellidos.toLowerCase().includes(buscar) ||
-      c.cedula.includes(buscar) ||
-      c.telefono?.includes(buscar)
+      String(c.cedula).includes(buscar) ||
+      (c.telefono || '').includes(buscar) ||
+      String(c.pin).includes(buscar)
     );
     renderClientes(filtrados);
+  }
+
+  function ordenarPor(campo) {
+    if (ordenActual.campo === campo) {
+      ordenActual.asc = !ordenActual.asc;
+    } else {
+      ordenActual.campo = campo;
+      ordenActual.asc = true;
+    }
+    document.querySelectorAll('.arrow').forEach(a => a.textContent = '');
+    document.getElementById('arrow-' + campo).textContent = ordenActual.asc ? '\u25B2' : '\u25BC';
+    aplicarFiltroYOrden();
+  }
+
+  function aplicarFiltroYOrden() {
+    const buscar = document.getElementById('buscar').value.toLowerCase();
+    let lista = todosClientes.filter(c =>
+      c.nombre_apellidos.toLowerCase().includes(buscar) ||
+      String(c.cedula).includes(buscar) ||
+      (c.telefono || '').includes(buscar) ||
+      String(c.pin).includes(buscar)
+    );
+    if (ordenActual.campo) {
+      const campo = ordenActual.campo;
+      lista = lista.slice().sort((a, b) => {
+        let va = a[campo], vb = b[campo];
+        if (campo === 'cedula') { va = Number(va) || 0; vb = Number(vb) || 0; }
+        else { va = (va || '').toString().toLowerCase(); vb = (vb || '').toString().toLowerCase(); }
+        if (va < vb) return ordenActual.asc ? -1 : 1;
+        if (va > vb) return ordenActual.asc ? 1 : -1;
+        return 0;
+      });
+    }
+    renderClientes(lista);
   }
 
   function renderClientes(clientes) {
@@ -118,6 +214,7 @@
         <td>${c.pin}</td>
         <td>
           <button class="btn btn-primary btn-sm" onclick="verNumeros(${c.id_cliente})">Ver Numeros</button>
+          <button class="btn btn-sm" onclick="abrirEdicion(${c.id_cliente})">Editar</button>
           <button class="btn btn-sm" style="background:#25D366;color:#fff;" data-tel="${c.telefono || ''}" data-msg="${encodeURIComponent('Hola ' + c.nombre_apellidos + ', te contactamos desde Rifas Online.')}" onclick="enviarWhatsAppFromBtn(this)">WhatsApp</button>
         </td>
       </tr>
@@ -138,11 +235,56 @@
     enviarWhatsApp(btn.dataset.tel, decodeURIComponent(btn.dataset.msg));
   }
 
+  function abrirEdicion(id) {
+    const cliente = todosClientes.find(c => c.id_cliente === id);
+    if (!cliente) return;
+    document.getElementById('edit-id').value = cliente.id_cliente;
+    document.getElementById('edit-cedula').value = cliente.cedula;
+    document.getElementById('edit-nombre').value = cliente.nombre_apellidos;
+    document.getElementById('edit-telefono').value = cliente.telefono || '';
+    document.getElementById('edit-pin').value = cliente.pin;
+    document.getElementById('alerta-editar').innerHTML = '';
+    document.getElementById('modal-editar').classList.add('active');
+  }
+
+  function cerrarModal() {
+    document.getElementById('modal-editar').classList.remove('active');
+  }
+
+  async function guardarEdicion() {
+    const id = document.getElementById('edit-id').value;
+    const body = {
+      cedula: parseInt(document.getElementById('edit-cedula').value, 10),
+      nombre_apellidos: document.getElementById('edit-nombre').value,
+      telefono: document.getElementById('edit-telefono').value,
+      pin: document.getElementById('edit-pin').value
+    };
+    if (!body.nombre_apellidos || !body.pin || isNaN(body.cedula)) {
+      document.getElementById('alerta-editar').innerHTML = '<div class="alert alert-error">Complete todos los campos correctamente</div>';
+      return;
+    }
+    try {
+      const res = await fetch(`${API}/clientes/${id}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        cerrarModal();
+        cargarClientes();
+      } else {
+        document.getElementById('alerta-editar').innerHTML = `<div class="alert alert-error">${data.detail || 'Error al actualizar'}</div>`;
+      }
+    } catch(e) {
+      document.getElementById('alerta-editar').innerHTML = '<div class="alert alert-error">Error de conexion</div>';
+    }
+  }
+
   async function cargarClientes() {
     try {
       const res = await fetch(`${API}/clientes/`);
       todosClientes = await res.json();
-      renderClientes(todosClientes);
+      aplicarFiltroYOrden();
     } catch(e) { document.getElementById('tabla-clientes').innerHTML = '<tr><td colspan="5">Error cargando datos</td></tr>'; }
   }
 
