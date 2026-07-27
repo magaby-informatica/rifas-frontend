@@ -34,6 +34,8 @@
       <div class="stat-card"><div class="stat-number" id="total-clientes">0</div><div class="stat-label">Clientes</div></div>
       <div class="stat-card"><div class="stat-number" id="total-pagados">0</div><div class="stat-label">Numeros Pagados</div></div>
       <div class="stat-card"><div class="stat-number" id="total-deben">0</div><div class="stat-label">Numeros que Deben</div></div>
+      <div class="stat-card"><div class="stat-number" id="dinero-recogido">$0</div><div class="stat-label">Dinero Recogido</div></div>
+      <div class="stat-card"><div class="stat-number" id="dinero-pendiente">$0</div><div class="stat-label">Dinero por Recoger</div></div>
     </div>
     <div class="card">
       <div class="card-header">
@@ -81,7 +83,17 @@
       document.getElementById('total-clientes').textContent = data.length;
     } catch(e) {}
   }
-  cargarDatos(); cargarClientes();
+  async function cargarResumen() {
+    try {
+      const res = await fetch(`${API}/dashboard/resumen`);
+      const data = await res.json();
+      document.getElementById('total-pagados').textContent = data.total_pagados;
+      document.getElementById('total-deben').textContent = data.total_deben;
+      document.getElementById('dinero-recogido').textContent = '$' + Number(data.dinero_recogido).toLocaleString();
+      document.getElementById('dinero-pendiente').textContent = '$' + Number(data.dinero_pendiente).toLocaleString();
+    } catch(e) {}
+  }
+  cargarDatos(); cargarClientes(); cargarResumen();
 </script>
 <script>
 function toggleSidebar() {
