@@ -31,6 +31,11 @@
       padding: 8px 12px; border-radius: 8px; font-size: 13px;
       z-index: 999; pointer-events: none; max-width: 200px;
     }
+    .banner-filtro {
+      background: #eef3ff; border: 1px solid var(--azul); color: var(--azul);
+      padding: 10px 14px; border-radius: 8px; margin-bottom: 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    }
   </style>
 </head>
 <body>
@@ -56,6 +61,11 @@
   </aside>
   <main class="main-content">
     <h1 class="page-title">Numeros de Rifa</h1>
+
+    <div class="banner-filtro" id="banner-filtro-cliente" style="display:none">
+      <span>Mostrando solo numeros de: <strong id="nombre-filtro-cliente"></strong></span>
+      <button class="btn btn-sm" style="background:#fff;color:var(--azul);border:1px solid var(--azul);" onclick="quitarFiltroCliente()">Quitar filtro</button>
+    </div>
 
     <div class="card">
       <div class="form-group" style="margin-bottom:0">
@@ -126,6 +136,7 @@
   let clientesMap = {};
   let rifasMap = {};
   let plantillasMap = {};
+  let filtroClienteId = null;
 
   async function cargarPlantillas() {
     try {
@@ -154,8 +165,65 @@
       opt.textContent = `${r.id_rifa} - ${r.loteria} (${r.fecha})`;
       sel.appendChild(opt);
     });
+
     const params = new URLSearchParams(window.location.search);
-    if (params.get('rifa')) { sel.value = params.get('rifa'); cargarNumeros(); }
+    const clienteParam = params.get('cliente');
+    const rifaParam = params.get('rifa');
+
+    if (clienteParam) {
+      filtroClienteId = clienteParam;
+      await activarFiltroCliente(clienteParam, rifas, rifaParam);
+    } else if (rifaParam) {
+      sel.value = rifaParam;
+      cargarNumeros();
+    }
+  }
+
+  async function activarFiltroCliente(idCliente, rifas, rifaPreferida) {
+    // Busca en que rifa(s) tiene numeros este cliente y selecciona la primera que tenga
+    const sel = document.getElementById('select-rifa');
+    let rifaElegida = rifaPreferida || null;
+
+    if (!rifaElegida) {
+      for (const r of rifas) {
+        try {
+          const res = await fetch(`${API}/numeros/rifa/${r.id_rifa}/todos`);
+          const nums = await res.json();
+          if (nums.some(n => String(n.id_cliente) === String(idCliente))) {
+            rifaElegida = r.id_rifa;
+            break;
+          }
+        } catch (e) {}
+      }
+    }
+
+    if (rifaElegida) {
+      sel.value = rifaElegida;
+      await cargarNumeros();
+    }
+
+    // Mostrar el banner con el nombre del cliente
+    try {
+      const resC = await fetch(`${API}/clientes/${idCliente}`);
+      if (resC.ok) {
+        const cliente = await resC.json();
+        document.getElementById('nombre-filtro-cliente').textContent = cliente.nombre_apellidos;
+        document.getElementById('banner-filtro-cliente').style.display = 'flex';
+      }
+    } catch (e) {}
+
+    if (!rifaElegida) {
+      document.getElementById('conteo').textContent = 'Este cliente aun no tiene numeros asignados.';
+    }
+  }
+
+  function quitarFiltroCliente() {
+    filtroClienteId = null;
+    document.getElementById('banner-filtro-cliente').style.display = 'none';
+    const url = new URL(window.location.href);
+    url.searchParams.delete('cliente');
+    window.history.replaceState({}, '', url);
+    renderGrid();
   }
 
   async function cargarClientes() {
@@ -192,15 +260,20 @@
     const grid = document.getElementById('numeros-grid');
     let visibles = 0;
     let disp = 0, debe = 0, pagado = 0;
-    todosNumeros.forEach(n => {
+
+    const base = filtroClienteId
+      ? todosNumeros.filter(n => String(n.id_cliente) === String(filtroClienteId))
+      : todosNumeros;
+
+    base.forEach(n => {
       if (n.estado === 'DISPONIBLE') disp++;
       else if (n.estado === 'DEBE') debe++;
       else if (n.estado === 'PAGADO') pagado++;
     });
     document.getElementById('conteo').textContent =
-      `Disponibles: ${disp} | Deben: ${debe} | Pagados: ${pagado} | Total: ${todosNumeros.length}`;
+      `Disponibles: ${disp} | Deben: ${debe} | Pagados: ${pagado} | Total: ${base.length}`;
 
-    grid.innerHTML = todosNumeros.map(n => {
+    grid.innerHTML = base.map(n => {
       const estado = n.estado.toLowerCase();
       const oculto = !filtrosActivos[estado] ? 'oculto' : '';
       if (!oculto) visibles++;
@@ -230,7 +303,6 @@
       btn.classList.add('inactivo');
       btn.classList.remove('activo');
     }
-    // Mostrar/ocultar celdas
     document.querySelectorAll('.numero-cell').forEach(cell => {
       const est = cell.dataset.estado.toLowerCase();
       if (filtrosActivos[est]) cell.classList.remove('oculto');
@@ -250,7 +322,6 @@
     document.getElementById('titulo-info-numero').textContent = `Numero ${numero}`;
     document.getElementById('card-info-numero').style.display = 'block';
 
-    // Traer resumen de pagos primero (necesario para llenar {valor} y {saldo} del mensaje)
     let resumenData = null;
     if (idCliente) {
       try {
@@ -282,7 +353,6 @@
       html += `<p><strong>Cliente:</strong> Disponible</p>`;
     }
 
-    // Mostrar resumen y abonos si tiene cliente
     if (idCliente) {
       if (resumenData) {
         html += `
@@ -300,7 +370,7 @@
           html += pagos.map(p => `<tr><td>$${Number(p.valor).toLocaleString()}</td><td>${new Date(p.fecha_pago).toLocaleDateString()}</td></tr>`).join('');
           html += `</tbody></table>`;
         }
-        html += `<br><a href="pagos.html"><button class="btn btn-primary btn-sm" style="width:auto">Registrar Abono</button></a>`;
+        html += `<br><a href="pagos.html?numero=${idNumero}"><button class="btn btn-primary btn-sm" style="width:auto">Registrar Abono</button></a>`;
       } catch(e) {}
     }
 
@@ -358,11 +428,9 @@
     const esAndroid = /Android/i.test(navigator.userAgent);
 
     if (esAndroid) {
-      // En Android se puede pedir explicitamente la app normal o Business
       const pkg = appTipo === 'business' ? 'com.whatsapp.w4b' : 'com.whatsapp';
       window.location.href = `intent://send?phone=${tel}&text=${texto}#Intent;package=${pkg};scheme=whatsapp;end`;
     } else {
-      // iPhone/PC: no se puede elegir la app, abre la que tengas configurada
       window.open(`https://wa.me/${tel}?text=${texto}`, '_blank');
     }
   }

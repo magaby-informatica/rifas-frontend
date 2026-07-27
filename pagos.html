@@ -149,6 +149,32 @@
       opt.textContent = `${r.loteria} - ${r.premio} (${r.fecha})`;
       sel.appendChild(opt);
     });
+
+    const params = new URLSearchParams(window.location.search);
+    const numeroParam = params.get('numero');
+    if (numeroParam) {
+      await preseleccionarNumero(numeroParam, rifas);
+    }
+  }
+
+  async function preseleccionarNumero(idNumero, rifas) {
+    try {
+      const res = await fetch(`${API}/pagos/resumen/${idNumero}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      // Necesitamos saber a que rifa pertenece este numero
+      for (const r of rifas) {
+        const resN = await fetch(`${API}/numeros/rifa/${r.id_rifa}/todos`);
+        const nums = await resN.json();
+        if (nums.some(n => String(n.id_numero) === String(idNumero))) {
+          document.getElementById('select-rifa').value = r.id_rifa;
+          await cargarNumeros();
+          document.getElementById('select-numero').value = idNumero;
+          mostrarInfoNumero();
+          break;
+        }
+      }
+    } catch (e) {}
   }
 
   async function cargarNumeros() {
